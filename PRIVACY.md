@@ -84,9 +84,30 @@ gh workflow run "Build APK" -R <you>/heli-board-rea --ref verify/privacy-guard-t
 
 ## Verification of the built artifact
 
-Checked on `HeliBoard_4.2-rea.1-debugNoMinify.apk` from CI run 39006856748
-(commit `b2a06ed4`), read straight out of the APK rather than the source, using
-`apkanalyzer` (pure Java, so it runs on Termux) plus direct `resources.arsc` inspection:
+Read straight out of the APK rather than the source, using `apkanalyzer` (pure Java, so it
+runs on Termux), `apksigner` and direct `resources.arsc` inspection.
+
+**Release APK** — `HeliBoard_4.2-rea.1-release.apk`, CI run 39008082780 (commit `d8f19f61`):
+
+```
+package="com.rea.heliboard"            versionName="4.2-rea.1"   versionCode="4201"
+android:allowBackup="false"            android:debuggable: not present
+uses-permission: READ_USER_DICTIONARY, RECEIVE_BOOT_COMPLETED, VIBRATE, WRITE_USER_DICTIONARY
+signing: APK Signature Scheme v2
+         CN=HeliBoard REA, OU=rea, O=personal fork
+         SHA-256 9E:34:85:94:9E:3A:AC:5F:19:61:A8:3F:96:5C:0C:D6:98:68:DB:4B:58:15:76:EF:38:12:DF:0B:E8:74:8A:EC
+```
+
+That SHA-256 is byte-for-byte the keystore's own certificate fingerprint, so the artifact
+is signed with this fork's key rather than a throwaway. CI re-checks this on every run with
+`apksigner verify --print-certs`, so a run that produced an unsigned or differently signed
+APK fails rather than silently uploading one.
+
+The four permissions above are the complete set. There is no `INTERNET`, no contacts and no
+location permission in the release build either.
+
+**Debug APK** — `HeliBoard_4.2-rea.1-debugNoMinify.apk` from CI run 39006856748
+(commit `b2a06ed4`), same tools:
 
 ```
 package="com.rea.heliboard.debug"     versionName="4.2-rea.1"
@@ -109,11 +130,8 @@ Also confirmed present in `resources.arsc`, and the upstream value confirmed abs
 
 Not yet verified:
 
-- The **release** variant is untested. It has its own proguard config and no signing
-  config, so `assembleRelease` currently produces an unsigned APK that cannot be
-  installed until item 3 below is done.
 - No decompiler pass has been run over `classes*.dex` to look for unexpected
-  network/analytics code (item 5 below).
+  network/analytics code (item 4 below).
 
 ## Changes vs upstream
 
