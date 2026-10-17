@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    REA fork: a suggestion divider that carries no colour of its own, so a theme can state one.
+
+    The divider is an ImageView whose src comes from the strip style. A theme that states a divider
+    colour selects this drawable and then tints it, and a tint composites with the source alpha, so
+    white is what makes the tinted result exactly the colour the theme stated.
+
+    Same size as suggestions_strip_divider.xml: the view is measured from the drawable's intrinsic
+    size, so this replaces that drawable without moving anything.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <size android:width="1dp" android:height="24dp" />
+</shape>

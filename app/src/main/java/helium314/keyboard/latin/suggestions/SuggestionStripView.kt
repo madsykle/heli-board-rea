@@ -9,6 +9,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -24,6 +25,7 @@ import android.view.View.OnLongClickListener
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
@@ -103,6 +105,15 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
             colors.setBackground(word, ColorType.STRIP_BACKGROUND)
             wordViews.add(word)
             val divider = inflater.inflate(R.layout.suggestion_divider, null)
+            // REA fork: a theme may state the colour of the suggestion rules itself. The divider
+            // takes its image from the strip style, so it is swapped for a colourless one and tinted
+            // here. Themes that state no divider colour keep the style's drawable untouched.
+            colors.suggestionsDivider?.let { color ->
+                (divider as ImageView).apply {
+                    setImageResource(R.drawable.suggestions_strip_divider_tinted)
+                    imageTintList = ColorStateList.valueOf(color)
+                }
+            }
             dividerViews.add(divider)
             val info = TextView(context, null, R.attr.suggestionWordStyle)
             info.setTextColor(colors.get(ColorType.KEY_TEXT))

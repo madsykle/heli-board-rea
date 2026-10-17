@@ -21,6 +21,8 @@ import helium314.keyboard.latin.common.Colors
 import helium314.keyboard.latin.common.DefaultColors
 import helium314.keyboard.latin.common.DynamicColors
 import helium314.keyboard.latin.common.GlassAlphas
+import helium314.keyboard.latin.common.SurfaceShading
+import helium314.keyboard.latin.common.scaledAlpha
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.ResourceUtils
@@ -33,6 +35,76 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.EnumMap
 import androidx.core.graphics.toColorInt
+
+/**
+ * REA fork: the whole "iOS 27 Dark" palette, in one place.
+ *
+ * Every colour the theme uses is named here, so tuning it is a one-line edit in this object and
+ * nothing else has to be touched. The values are the design's own, written as ARGB: the alpha is
+ * part of the colour, so translucent surfaces are written as e.g. `#CC202127` rather than as an
+ * opaque colour plus a separate opacity.
+ *
+ * The three scalars at the end are deliberately separate knobs for how much of what sits behind the
+ * keyboard shows through the panel and the keys. They scale the alphas written above (255 = use them
+ * exactly as written), so both the colour and the transparency of a surface stay tunable in one place.
+ *
+ * Only [KeyboardTheme.THEME_IOS27] reads this; every other theme keeps its own colours untouched.
+ */
+object Ios27Palette {
+    // ---- surfaces -------------------------------------------------------------------------------
+    /** the keyboard panel; the suggestion strip is part of the same slab and draws nothing of its own */
+    val PANEL = 0xCC202127.toInt()
+    /** character keys and the spacebar */
+    val KEY = 0x665B5F68.toInt()
+    /** any key surface while it is held down */
+    val PRESSED = 0x997D828D.toInt()
+    /** functional keys: shift, delete, globe, mode keys */
+    val MODIFIER = 0x44333842.toInt()
+    /** the action key: enter, search, done, send */
+    val ACTION = 0xFF626570.toInt()
+    /** the rules between the suggestion areas */
+    val DIVIDER = 0x30FFFFFF.toInt()
+    // ---- text and icons -------------------------------------------------------------------------
+    /** key letters and suggestion text */
+    val CHARACTER = 0xFFF5F5F7.toInt()
+    /** everything secondary: corner hints, toolbar icons, spacebar label */
+    val SECONDARY_ICON = 0xB8C0C9.toInt()
+    // ---- alphas, applied on top of the colours above --------------------------------------------
+    /** how opaque the panel material is; 255 keeps `#CC202127`, lower shows more of the backdrop */
+    const val PANEL_ALPHA = 255
+    /** how opaque every key surface is; 255 keeps the alphas above, lower shows more of the backdrop */
+    const val KEY_ALPHA = 255
+    /** how strongly an extra dim layer sits between the background image and the panel; 0 = none */
+    const val SCRIM_INTENSITY = 0
+    // ---- soft shading ---------------------------------------------------------------------------
+    /** the soft darkening that falls off from the lower edge of the panel and of every keycap */
+    const val EDGE_SHADE = 0x33000000
+    /** the faint highlight along the top inside edge of every keycap */
+    const val TOP_HIGHLIGHT = 0x2BFFFFFF
+    /** corner radius of a keycap, in dp: keys, popup keys and emoji keys all use it */
+    const val KEY_RADIUS_DP = 9f
+    /** corner radius of the top corners of the panel, in dp */
+    const val PANEL_RADIUS_DP = 28f
+
+    /** the panel colour with [PANEL_ALPHA] applied; this is what the theme actually paints */
+    val panel: Int get() = PANEL.scaledAlpha(PANEL_ALPHA)
+    /** a character key with [KEY_ALPHA] applied */
+    val key: Int get() = KEY.scaledAlpha(KEY_ALPHA)
+    /** a pressed key with [KEY_ALPHA] applied */
+    val pressed: Int get() = PRESSED.scaledAlpha(KEY_ALPHA)
+    /** a functional key with [KEY_ALPHA] applied */
+    val modifier: Int get() = MODIFIER.scaledAlpha(KEY_ALPHA)
+    /** the action key with [KEY_ALPHA] applied */
+    val action: Int get() = ACTION.scaledAlpha(KEY_ALPHA)
+
+    /** the shading overlay for keys and panel, described once and used by both */
+    val shading = SurfaceShading(
+        edgeShade = EDGE_SHADE,
+        topHighlight = TOP_HIGHLIGHT,
+        keyCornerRadiusDp = KEY_RADIUS_DP,
+        panelTopCornerRadiusDp = PANEL_RADIUS_DP
+    )
+}
 
 class KeyboardTheme // Note: The themeId should be aligned with "themeId" attribute of Keyboard style in values/themes-<style>.xml.
 private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
@@ -446,42 +518,47 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                 THEME_IOS27 -> DefaultColors(
                     themeStyle,
                     hasBorders,
-                    Color.rgb(247, 206, 105), // accent — swipe trail and selection highlights, not the action key
-                    Color.rgb(44, 47, 56),    // panel, light end of the 150deg ramp
-                    Color.rgb(86, 88, 95),    // character keys, light end of the 160deg ramp
-                    Color.rgb(47, 50, 60),    // functional keys (shift/delete/return/globe)
-                    Color.rgb(86, 88, 95),    // spacebar, same family as character keys
-                    Color.rgb(245, 245, 247), // key text
-                    Color.rgb(180, 181, 191), // key hint text (shifted/popup letters)
-                    Color.rgb(245, 245, 247), // suggestion text
-                    Color.rgb(197, 199, 208), // spacebar text
-                    Color.rgb(247, 206, 105), // gesture trail
+                    Color.rgb(247, 206, 105),      // accent — swipe trail and selection highlights, not the action key
+                    Ios27Palette.panel,            // panel
+                    Ios27Palette.key,              // character keys
+                    Ios27Palette.modifier,         // functional keys (shift/delete/globe)
+                    Ios27Palette.key,              // spacebar, same family as character keys
+                    Ios27Palette.CHARACTER,        // key letters
+                    Ios27Palette.SECONDARY_ICON,   // corner hints, toolbar and spacebar icons
+                    suggestionText = Ios27Palette.CHARACTER,
+                    spaceBarText = Ios27Palette.SECONDARY_ICON,
                     keyboardBackground = backgroundImage,
                     // The design paints the panel and the keys as translucent material over the app
                     // behind it. Android IME windows can neither blur nor see through the app, so the
-                    // glass is faked: the keys are made genuinely translucent, so a user background
-                    // image shows through them. The panel is deliberately *not* translucent. With a
-                    // background image it is that image; without one the only thing behind it is the
-                    // IME window background, which this app does not declare and can be any color, so
-                    // the panel stays the design's flat opaque color (#2c2f38). Alphas are the
-                    // design's own where it states one (its keys are #696b75aa / #4b4d57bb).
+                    // glass is faked: the keys and the panel are genuinely translucent, and a user
+                    // background image (pre-blurred by the user) is what shows through them. The
+                    // alphas come from the palette above, so these scalars are 255 = "as written".
                     glassAlphas = GlassAlphas(
-                        key = 0xAA,                 // design: #696b75aa
-                        keyPressed = 0xBB,          // design: #4b4d57bb
-                        functionalKey = 0xB4,
-                        functionalKeyPressed = 0xC6
+                        key = Ios27Palette.KEY_ALPHA,
+                        keyPressed = Ios27Palette.KEY_ALPHA,
+                        functionalKey = Ios27Palette.KEY_ALPHA,
+                        functionalKeyPressed = Ios27Palette.KEY_ALPHA
                     ),
-                    // The design's pressed key is a big step lighter than the resting key
-                    // (.key:active is #888b99, against #696b75aa/#4b4d57bb at rest), much more than
-                    // the standard one-step brighten. Theme-local, so every other theme keeps the
-                    // standard step.
-                    pressedKeyColor = Color.rgb(136, 139, 153), // #888b99
+                    // The design's pressed key is a big step lighter and more opaque than the resting
+                    // key, so the theme states the pressed colour itself instead of relying on the
+                    // standard one-step brighten.
+                    pressedKeyColor = Ios27Palette.pressed,
                     // HeliBoard paints the action key (enter / search / done) with the accent, which
                     // here is the gold of the swipe trail. The design wants a neutral key for it, so
                     // the action key gets its own grey and the gold stays on the trail.
-                    actionKeyBackground = Color.rgb(111, 114, 124), // #6f727c, lighter than the character keys
+                    actionKeyBackground = Ios27Palette.action,
                     // The design puts nothing in the key corners: no hint labels, no hint icons.
-                    showKeyHints = false
+                    showKeyHints = false,
+                    // panel surfaces: the translucent panel colour over the background image, with the
+                    // design's soft shading on top as an untinted layer
+                    panelOverImage = Ios27Palette.panel,
+                    panelScrim = Ios27Palette.SCRIM_INTENSITY,
+                    dividerColor = Ios27Palette.DIVIDER,
+                    shading = Ios27Palette.shading,
+                    // long-press popups and the more-suggestions popup use the same panel and key
+                    // palette as the keyboard they opened from
+                    popupKeysBackground = Ios27Palette.key,
+                    popupPanelBackground = Ios27Palette.panel
                 )
                 else -> { // user-defined theme
                     val colorSettings = readUserColors(prefs, themeName)

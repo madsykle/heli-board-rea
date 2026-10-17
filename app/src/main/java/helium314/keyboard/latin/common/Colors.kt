@@ -10,8 +10,10 @@ import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.PorterDuff
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.os.Build
 import android.view.View
 import android.widget.ImageView
@@ -48,6 +50,21 @@ interface Colors {
     /** whether key hint labels/icons (the small characters in the key corners) are drawn.
      *  Designs that place nothing in the corners set this to false. */
     val showKeyHints: Boolean get() = true
+    /** REA fork: the colour of the rules between the suggestion areas, or null to keep whatever
+     *  colour the divider drawable of the theme style was painted in.
+     *
+     *  A theme that states one also selects the white divider drawable (see SuggestionStripView),
+     *  because a tint composites with the source alpha: over the white drawable this value is
+     *  exactly the colour that ends up on screen, which is what makes it tunable in one place. */
+    val suggestionsDivider: Int? get() = null
+    /** REA fork: the soft shading a design may want *on top of* its surfaces, or null for none.
+     *
+     *  The design expresses its soft edges with CSS box-shadows. A hardware-accelerated Android
+     *  canvas can not draw a shadow for a shape, and the tint path can not either, because it
+     *  multiplies (or, for glass keys, replaces) the surface colour and therefore can never produce
+     *  a colour lighter than the surface. So the shading is a layer of its own, drawn untinted over
+     *  the surface. */
+    val surfaceShading: SurfaceShading? get() = null
     val accentShiftedIcon: Boolean get() =
         Settings.getCurrentContext().prefs().getBoolean(Settings.PREF_ACCENT_SHIFTED_ICON, Defaults.PREF_ACCENT_SHIFTED_ICON)
 
@@ -389,10 +406,10 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
  * These are alphas, not colors: the key color still comes from the theme, only its opacity is
  * overridden. See [DefaultColors.setColor] for how the alpha is applied.
  *
- * Only keys are translucent. The keyboard panel and the suggestion strip sit directly on the IME
- * window, whose background this app does not declare and therefore cannot predict, so they stay
- * opaque: with a user background image the panel *is* that image, and without one it is the theme's
- * flat panel color. A translucent panel would show an arbitrary platform color through it.
+ * Only keys are translucent. The panel and the suggestion strip are the IME window's own surface:
+ * they are painted from the theme's panel colour (see [DefaultColors.panelOverImage]) rather than
+ * from these alphas, and this app does not declare the window background, so a translucent panel
+ * shows whatever the platform puts behind the IME.
  */
 data class GlassAlphas(
     /** character keys */
@@ -404,6 +421,42 @@ data class GlassAlphas(
     /** functional keys while pressed */
     val functionalKeyPressed: Int,
 )
+
+/**
+ * REA fork: the soft shading a design may want *on top of* its surfaces — the Android stand-in for
+ * the box-shadows the design is written with.
+ *
+ * It has to be a layer of its own: a key surface is painted by tinting a drawable with the theme's
+ * key colour, and a tint can only multiply (or, for glass keys, only replace) that colour, so it can
+ * never produce anything lighter than the surface. A separate drawable that is not tinted can, and
+ * is therefore also where the "soft edge" with no hard border comes from.
+ */
+data class SurfaceShading(
+    /** the colour the lower edge falls off into */
+    val edgeShade: Int,
+    /** the hairline highlight along the top inside edge (keys only) */
+    val topHighlight: Int,
+    /** corner radius of a keycap, in dp: keys, popup keys and emoji keys all use it */
+    val keyCornerRadiusDp: Float,
+    /** corner radius of the top corners of the panel, in dp */
+    val panelTopCornerRadiusDp: Float,
+) {
+    /**
+     * The overlay for a surface with the rounded corners [cornerRadiiPx] (top-left, top-right,
+     * bottom-right, bottom-left order, as [android.graphics.drawable.GradientDrawable] wants it).
+     *
+     * [GradientDrawable] spaces three colour stops evenly and offers nothing finer, so the *shape*
+     * of the falloff is fixed: the top highlight fades out by the middle of the surface and the edge
+     * darkening fades in from there. What the palette tunes is how strong each end of it is.
+     */
+    fun overlay(cornerRadiiPx: FloatArray, withTopHighlight: Boolean) = GradientDrawable(
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        intArrayOf(if (withTopHighlight) topHighlight else Color.TRANSPARENT, Color.TRANSPARENT, edgeShade)
+    ).apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadii = cornerRadiiPx
+    }
+}
 
 class DefaultColors (
     override val themeStyle: String,
@@ -427,7 +480,23 @@ class DefaultColors (
     private val pressedKeyColor: Int? = null,
     /** false for themes whose design has no hint labels/icons in the key corners */
     override val showKeyHints: Boolean = true,
+    /** REA fork: the panel colour drawn *over* the user background image. Null is the upstream
+     *  behaviour, where the image *is* the panel; non-null makes the panel genuinely translucent
+     *  over the image instead of opaque, which is what a glass design needs. */
+    private val panelOverImage: Int? = null,
+    /** REA fork: alpha of an extra dim layer between the background image and the panel (0 = none) */
+    private val panelScrim: Int = 0,
+    /** REA fork: the colour of the rules between the suggestion areas (null = keep the drawable's) */
+    private val dividerColor: Int? = null,
+    /** REA fork: soft shading drawn untinted over the panel and over every keycap (null = none) */
+    private val shading: SurfaceShading? = null,
+    /** REA fork: colour of the keys inside a long-press popup (null = upstream's brightened panel) */
+    private val popupKeysBackground: Int? = null,
+    /** REA fork: colour of the popup panel itself (null = upstream's brightened panel) */
+    private val popupPanelBackground: Int? = null,
 ) : Colors {
+    override val suggestionsDivider: Int? get() = dividerColor
+    override val surfaceShading: SurfaceShading? get() = shading
     private val navBar: Int
     /** brightened or darkened variant of [background], to be used if exact background color would be
      *  bad contrast, e.g. popup keys popup or no border space bar */
@@ -464,6 +533,9 @@ class DefaultColors (
     private val glassFunctionalKeyStateList: ColorStateList?
     private val glassActionKeyStateList: ColorStateList?
     private val glassSpaceBarStateList: ColorStateList?
+    /** REA fork: popup key colours the theme states itself; null keeps the upstream derived colour */
+    private val popupKeyStateList: ColorStateList?
+    private val glassPopupKeyStateList: ColorStateList?
 
     init {
         if (isDarkColor(background)) {
@@ -558,18 +630,36 @@ class DefaultColors (
         glassSpaceBarStateList = glassAlphas?.let { glass ->
             pressedStateList(spaceBarColors[0].scaledAlpha(glass.keyPressed), spaceBarColors[1].scaledAlpha(glass.key))
         }
+
+        // REA fork: a theme may state the colour of popup keys itself. They then get the same
+        // [pressed, normal] structure and the same glass alphas as character keys, so a long-press
+        // popup looks like the keyboard it opened from instead of a brightened version of the panel.
+        popupKeyStateList = popupKeysBackground?.let { pressedStateList(pressedVariant(it), it) }
+        glassPopupKeyStateList = if (popupKeysBackground != null) glassAlphas?.let { glass ->
+            pressedStateList(
+                popupKeysBackground.scaledAlpha(glass.keyPressed),
+                popupKeysBackground.scaledAlpha(glass.key)
+            )
+        } else null
     }
 
     /** the pressed variant of a key surface color: the theme's own pressed color if it states one,
-     *  otherwise one step brighter/darker than the resting color (the classic HeliBoard look) */
-    private fun pressedVariant(color: Int) = pressedKeyColor ?: brightenOrDarken(color, true)
+     *  otherwise one step brighter/darker than the resting color (the classic HeliBoard look).
+     *
+     *  The theme's pressed color is taken at the opacity of the key it presses, never below it: a
+     *  pressed colour more transparent than the resting key would *dim* an opaque key (the action
+     *  key) instead of lighting it up, and a design's pressed state is lighter and more opaque. */
+    private fun pressedVariant(color: Int) = pressedKeyColor?.let {
+        ColorUtils.setAlphaComponent(it, maxOf(Color.alpha(it), Color.alpha(color)))
+    } ?: brightenOrDarken(color, true)
 
     override fun get(color: ColorType): Int = when (color) {
         ACTION_KEY_BACKGROUND -> actionKeyBackground ?: accent
         TOOL_BAR_KEY_ENABLED_BACKGROUND, EMOJI_CATEGORY_SELECTED, CLIPBOARD_PIN -> accent
         SHIFT_KEY_ICON -> if (accentShiftedIcon) accent else keyText
         AUTOFILL_BACKGROUND_CHIP -> if (themeStyle == STYLE_MATERIAL && !hasKeyBorders) background else adjustedBackground
-        GESTURE_PREVIEW, POPUP_KEYS_BACKGROUND, MORE_SUGGESTIONS_BACKGROUND, KEY_PREVIEW_BACKGROUND -> adjustedBackground
+        GESTURE_PREVIEW, MORE_SUGGESTIONS_BACKGROUND, KEY_PREVIEW_BACKGROUND -> adjustedBackground
+        POPUP_KEYS_BACKGROUND -> popupKeysBackground ?: adjustedBackground
         TOOL_BAR_EXPAND_KEY_BACKGROUND, CLIPBOARD_SUGGESTION_BACKGROUND -> doubleAdjustedBackground
         GESTURE_TRAIL -> gesture
         KEY_TEXT, REMOVE_SUGGESTION_ICON, FUNCTIONAL_KEY_TEXT, KEY_ICON, EMOJI_KEY_TEXT,
@@ -600,6 +690,7 @@ class DefaultColors (
             FUNCTIONAL_KEY_BACKGROUND -> glassFunctionalKeyStateList
             ACTION_KEY_BACKGROUND -> glassActionKeyStateList
             SPACE_BAR_BACKGROUND -> glassSpaceBarStateList
+            POPUP_KEYS_BACKGROUND -> glassPopupKeyStateList
             else -> null
         }
         if (glassStateList != null) {
@@ -613,7 +704,7 @@ class DefaultColors (
             FUNCTIONAL_KEY_BACKGROUND -> functionalKeyStateList
             ACTION_KEY_BACKGROUND -> actionKeyStateList
             SPACE_BAR_BACKGROUND -> spaceBarStateList
-            POPUP_KEYS_BACKGROUND -> adjustedBackgroundStateList
+            POPUP_KEYS_BACKGROUND -> popupKeyStateList ?: adjustedBackgroundStateList
             STRIP_BACKGROUND -> stripBackgroundList
             ACTION_KEY_POPUP_KEYS_BACKGROUND -> if (themeStyle == STYLE_HOLO) adjustedBackgroundStateList
                 else actionKeyStateList
@@ -640,7 +731,9 @@ class DefaultColors (
         if (view.background == null)
             view.setBackgroundColor(Color.WHITE) // set white to make the color filters work
         when (color) {
-            KEY_PREVIEW_BACKGROUND, POPUP_KEYS_BACKGROUND -> view.background.colorFilter = adjustedBackgroundFilter
+            KEY_PREVIEW_BACKGROUND -> view.background.colorFilter = adjustedBackgroundFilter
+            POPUP_KEYS_BACKGROUND -> view.background.colorFilter =
+                if (popupPanelBackground != null) colorFilter(popupPanelBackground) else adjustedBackgroundFilter
             FUNCTIONAL_KEY_BACKGROUND, KEY_BACKGROUND, MORE_SUGGESTIONS_WORD_BACKGROUND, SPACE_BAR_BACKGROUND, STRIP_BACKGROUND, CLIPBOARD_SUGGESTION_BACKGROUND -> setColor(view.background, color)
             ONE_HANDED_MODE_BUTTON -> setColor(view.background, if (keyboardBackground == null) MAIN_BACKGROUND else STRIP_BACKGROUND)
             MORE_SUGGESTIONS_BACKGROUND -> view.background.colorFilter = backgroundFilter
@@ -653,13 +746,18 @@ class DefaultColors (
                 val panel = when {
                     image == null -> null
                     backgroundSetupDone -> image
-                    else -> panelBackgroundOrNull(image, view)?.also {
+                    else -> panelBackgroundOrNull(image, view, panelOverImage, panelScrim, shading)?.also {
                         keyboardBackground = it
                         backgroundSetupDone = true
                     }
                 }
                 if (panel != null) {
                     view.background = panel
+                } else if (panelOverImage != null && image == null) {
+                    // REA fork: no background image, yet this theme's panel is translucent material of
+                    // its own. Painting it as a layer instead of tinting the view's white background
+                    // gives the panel its soft shading too, and keeps both cases identical.
+                    view.background = panelSurface(null, panelOverImage, 0, shading, view)
                 } else {
                     // no background image (yet): the panel is the theme's flat panel color
                     view.background.colorFilter = backgroundFilter
@@ -760,10 +858,44 @@ private fun activatedStateList(activated: Int, normal: Int): ColorStateList {
  *
  * The resulting bitmap is stretched to the panel, ignoring its aspect ratio: there is no cropping.
  */
-private fun panelBackgroundOrNull(image: Drawable, view: View): Drawable? {
+private fun panelBackgroundOrNull(
+    image: Drawable,
+    view: View,
+    panelOverImage: Int? = null,
+    panelScrim: Int = 0,
+    shading: SurfaceShading? = null,
+): Drawable? {
     if (view.width <= 0 || view.height <= 0) return null
     if (image is BitmapDrawable && image.bitmap == null) return null
-    return image.toBitmap(view.width, view.height).toDrawable(view.context.resources)
+    val rasterised = image.toBitmap(view.width, view.height).toDrawable(view.context.resources)
+    if (panelOverImage == null) return rasterised
+    return panelSurface(rasterised, panelOverImage, panelScrim, shading, view)
+}
+
+/**
+ * REA fork: the panel as a stack of layers: the background image (if there is one), an optional dim
+ * layer, the panel colour, and the theme's soft shading on top.
+ *
+ * The shading is the top layer and is never tinted, because the tint is what paints the layers
+ * below (see [SurfaceShading]). Only themes that state a [DefaultColors] panel colour over the image
+ * get this; for every other theme the panel is still the image, or one flat colour.
+ */
+private fun panelSurface(
+    image: Drawable?,
+    panelColour: Int,
+    scrim: Int,
+    shading: SurfaceShading?,
+    view: View,
+): Drawable {
+    val layers = ArrayList<Drawable>(4)
+    image?.let { layers.add(it) }
+    if (scrim > 0) layers.add(ColorDrawable(ColorUtils.setAlphaComponent(panelColour, scrim)))
+    layers.add(ColorDrawable(panelColour))
+    shading?.let {
+        val radius = it.panelTopCornerRadiusDp * view.resources.displayMetrics.density
+        layers.add(it.overlay(floatArrayOf(radius, radius, 0f, 0f), withTopHighlight = false))
+    }
+    return LayerDrawable(layers.toTypedArray())
 }
 
 /**
@@ -775,7 +907,7 @@ private fun panelBackgroundOrNull(image: Drawable, view: View): Drawable? {
  * alpha, and that must keep its relative transparency. Fully transparent colors stay
  * transparent.
  */
-private fun Int.scaledAlpha(factor: Int): Int =
+internal fun Int.scaledAlpha(factor: Int): Int =
     if (Color.alpha(this) == 0) this
     else ColorUtils.setAlphaComponent(this, Color.alpha(this) * factor / 255)
 

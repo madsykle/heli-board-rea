@@ -15,12 +15,12 @@ platform will not do, so a later tweak does not have to rediscover them.
 
 | Piece | File |
 | --- | --- |
-| Palette | `keyboard/KeyboardTheme.kt` — `THEME_IOS27` (`rea_ios27`) |
+| Palette | `keyboard/KeyboardTheme.kt` — `Ios27Palette` (one object, read by `THEME_IOS27`) |
 | Panel + key geometry | `res/drawable/keyboard_background_lxx_base_border.xml`, `btn_keyboard_key_*_lxx_base_border.xml` |
 | Suggestion strip | `res/drawable/keyboard_suggest_strip_lxx_base_border.xml`, `res/drawable/suggestions_strip_divider.xml` |
 | Borderless spacebar | `res/drawable/btn_keyboard_spacebar_base.xml` **and** `res/drawable-v26/btn_keyboard_spacebar_base.xml` — the `-v26` copy wins on every modern device, so keep the two in step |
 | Popup keys / panel | `res/drawable/btn_keyboard_key_popup_lxx_base.xml`, `keyboard_popup_panel_background_lxx_base.xml` |
-| Theme-local hooks | `latin/common/Colors.kt` (`DefaultColors`), `keyboard/KeyboardView.java` (hint gate) |
+| Theme-local hooks | `latin/common/Colors.kt` (`DefaultColors`), `keyboard/KeyboardView.java` (hint gate, key shading) |
 | Bundled font | `res/font/inter_regular.ttf`, `KeyboardTypeface.kt`, `assets/licenses/Inter-OFL-1.1.txt` |
 | Icon set | `res/drawable/ic_ios27_*.xml`, `keyboard/internal/KeyboardIconsSet.kt` |
 | It ships as the default | `latin/settings/Defaults.kt` |
@@ -32,22 +32,43 @@ off HeliBoard paints keys through a different, flat drawable.
 
 ## Palette
 
-The design's layers are translucent (`#696b75aa`, `#202127cc`, …) because they composite
-over the app behind them. The palette stores the colours **already composited** onto the
-design's own panel, i.e. the hue you see in the Figma mock; the design's translucency is
-put back by the glass layer described below.
+Every colour the theme uses is named in **one object**, `Ios27Palette` in
+`keyboard/KeyboardTheme.kt`, and the theme's `DefaultColors(...)` call reads only that object. A
+tweak is therefore a one-line edit in that object and nothing else has to be touched. The values
+are written the way the design writes them — as ARGB, with the opacity inside the colour
+(`#CC202127`, not "`#202127` at 80%") — so the transparency of a surface is part of its colour.
 
-| Design token | Design value | Theme field | Value used |
-| --- | --- | --- | --- |
-| accent (swipe trail, selection highlights) | `#f7ce69` | accent, gesture | `#f7ce69` |
-| keyboard panel ramp | `#45495788` → `#202127cc` → `#27282ee6` | background | `#2c2f38` |
-| key ramp | `#696b75aa` → `#4b4d57bb` | keys, spacebar | `#56585f` |
-| functional key ramp | `#30333dcc` → `#282a32dd` | functional keys | `#2f323c` |
-| pressed key (`.key:active`) | `#888b99` | `pressedKeyColor` | `#888b99` |
-| action/return key | — (design keeps the functional ramp) | `actionKeyBackground` | `#6f727c` |
-| `:root` foreground | `#f5f5f7` | key text, suggestion text | `#f5f5f7` |
-| footer icon / hint | `#b4b5bf` | hint text | `#b4b5bf` |
-| trackpad hint | `#c5c7d0` | spacebar text | `#c5c7d0` |
+| Palette entry | Value | Paints |
+| --- | --- | --- |
+| `PANEL` | `#CC202127` | the panel — and the suggestion strip, which is part of the same slab |
+| `KEY` | `#665B5F68` | character keys and the spacebar |
+| `PRESSED` | `#997D828D` | any key surface while it is held down |
+| `MODIFIER` | `#44333842` | functional keys: shift, delete, globe, mode keys |
+| `ACTION` | `#FF626570` | the action key: enter, search, done, send |
+| `CHARACTER` | `#FFF5F5F7` | key letters and suggestion text |
+| `SECONDARY_ICON` | `#B8C0C9` | corner hints, toolbar icons, spacebar label |
+| `DIVIDER` | `#30FFFFFF` | the rules between the suggestion areas |
+
+Three scalars sit next to the colours and scale their alphas; 255 means "use them exactly as
+written":
+
+| Scalar | Default | Effect |
+| --- | --- | --- |
+| `PANEL_ALPHA` | 255 | how opaque the panel material is; lower shows more of the backdrop |
+| `KEY_ALPHA` | 255 | how opaque every key surface is |
+| `SCRIM_INTENSITY` | 0 | an extra dim layer between the background image and the panel; 0 = off |
+
+`EDGE_SHADE`, `TOP_HIGHLIGHT`, `KEY_RADIUS_DP` (9) and `PANEL_RADIUS_DP` (28) describe the soft
+shading and the corner radii, see *Soft edges*.
+
+The palette is applied through the theme's colour slots, so it reaches everything at once, without
+each surface needing its own hook: the panel, the keys, the spacebar, the suggestion strip and its
+rules, long-press popups and the keys inside them, the more-suggestions popup, the symbols and
+numbers layouts, the emoji page and every alternate-language layout.
+
+The design's layers are translucent because they composite over the app behind them, and this
+palette keeps that: see *Glass* below for how the translucency is put back, and *Soft edges* for
+the one thing a tint cannot draw.
 
 ### Theme-local overrides
 
@@ -57,20 +78,35 @@ does not pass them behaves exactly as upstream:
 
 - `pressedKeyColor` — HeliBoard computes a pressed colour by moving the resting colour one
   small step (`brightenOrDarken(colour, true)`), which is a much smaller jump than the
-  design's. The design's pressed key is `#888b99`, a large step lighter, and the design
-  gives every key family the same pressed colour (its `.utility`/`.return`/`.space` rules
-  never override `.key:active`). This theme states `#888b99` and it is used for character,
-  functional, spacebar **and** action keys. Applied to the *state lists*, so it reaches both
-  the opaque and (for this theme) the translucent SRC_IN path.
+  design's. This theme states the palette's `PRESSED` (`#997D828D`), one large step lighter
+  than any resting key, and uses it for character, functional, spacebar **and** action keys,
+  because the design gives every key family the same pressed colour (its
+  `.utility`/`.return`/`.space` rules never override `.key:active`). It is applied to the
+  *state lists*, so it reaches both the opaque and the translucent SRC_IN path, and it is
+  taken at the opacity of the key it presses (`max` of the two alphas) so that pressing the
+  opaque action key lightens it instead of fading it.
 - `actionKeyBackground` — the action key (enter / search / done / send …) is painted with
   the theme *accent* upstream, which here would be the gold of the swipe trail. The design
-  wants a neutral key, so the action key has its own grey (`#6f727c`, deliberately lighter
-  than the character keys so it still reads as the primary button). This is a deliberate
-  deviation from the mock, which paints `.return` with the same functional ramp as the other
-  bottom-row keys; the brief asked for a lighter neutral key. The gold accent now reaches
-  only the swipe trail and the selection highlights (selected emoji category, pinned
-  clipboard entries, enabled toolbar key). This also drives the action key's *pressed*
-  colour and its icon contrast decision.
+  wants a neutral key, so the action key gets the palette's `ACTION` (`#FF626570`,
+  deliberately lighter than the character keys so it still reads as the primary button). This
+  is a deliberate deviation from the mock, which paints `.return` with the same functional
+  ramp as the other bottom-row keys; the brief asked for a lighter neutral key. The gold
+  accent now reaches only the swipe trail and the selection highlights (selected emoji
+  category, pinned clipboard entries, enabled toolbar key). This also drives the action key's
+  *pressed* colour and its icon contrast decision.
+- `dividerColor` — the suggestion rules take their drawing from the strip *style*, which every
+  theme shares, so a theme that wants its own colour states it here. The rule is then drawn from
+  a colourless copy of the divider (`suggestions_strip_divider_tinted.xml`, white) and tinted
+  with the stated colour: a tint composites with the source alpha, so white is what makes the
+  rendered colour exactly the stated one. `null` — every other theme — keeps the style's own
+  drawable untouched.
+- `popupKeysBackground`, `popupPanelBackground` — long-press popups and the more-suggestions
+  popup are painted from a *brightened variant of the panel* upstream, which would have made them
+  out-of-palette panels rather than keys. This theme states the palette's `KEY` and `PANEL`, so a
+  popup is the same material as the keyboard it opened from, including the pressed colour (and
+  the glass alphas). `null` for both leaves upstream behaviour alone.
+- `panelOverImage`, `panelScrim` — see *Glass* below: the panel colour drawn over the user's
+  background image, instead of the upstream behaviour where the image *is* the panel.
 - `showKeyHints` — whether the small hint labels/icons in the key corners are drawn at all.
   `KeyboardView` now requires **both** the user's `PREF_SHOW_HINTS` and the theme's
   `showKeyHints`. For this theme it is `false`, so no hint glyph appears in any key corner,
@@ -78,6 +114,66 @@ does not pass them behaves exactly as upstream:
   corner rather than centred, key labels come out centred — which is what the design shows.
   This is a `Colors` property rather than a settings key on purpose: it is a property of the
   design, not of the user, and it must not leak into other themes or into the settings UI.
+
+## Soft edges (edge shading, top highlight)
+
+The design gets its soft edges from CSS `box-shadow`s: `inset 0 1px 0 #ffffff25` for the hairline
+highlight inside a key's top edge, and a dark shadow around the panel and under the keys. Two
+platform facts rule out the obvious ways of doing that on Android:
+
+- A hardware-accelerated canvas cannot draw a shadow *for a shape* (`Paint.setShadowLayer` is text
+  only), so the design's shadows cannot be painted as shadows.
+- The key surfaces are painted by *tinting* a drawable with the theme's key colour, and a tint can
+  only multiply (for glass keys: only replace) that colour. It can never produce anything lighter
+  than the surface, so a baked-in highlight renders as the key colour itself and disappears.
+
+So the shading is a **layer of its own**, drawn over the surface and never tinted — which is what
+the brief asked for and what makes both halves possible:
+
+- `SurfaceShading` (`latin/common/Colors.kt`) holds the two colours and the corner radii, and
+  builds the layer as one `GradientDrawable`: a faint `TOP_HIGHLIGHT` at the top edge and a soft
+  `EDGE_SHADE` towards the bottom edge, clipped to the surface's own rounded corners.
+- `KeyboardView` builds one such layer per theme in its constructor (like the key background
+  drawables themselves) and draws it over every keycap whose surface really is that rounded
+  rectangle: character, functional, action and spacebar keys, popup keys, the more-suggestions
+  words, and the symbols/numbers and alternate-language layouts. It skips the surfaces that are a
+  different shape altogether — the emoji grid, which has no key surface at all, and the *oval*
+  action key of the long-press popup.
+- The panel gets the same layer as part of its own composition, without the highlight.
+
+The shape of the falloff is fixed: `GradientDrawable` spaces three colour stops evenly and offers
+nothing finer, so the highlight fades out by the middle of a surface and the darkening fades in
+from there. What the palette tunes is how strong each end is (`EDGE_SHADE`, `TOP_HIGHLIGHT`).
+
+## Geometry: what was changed and what was left to the user's settings
+
+Nothing in the layout was changed for this theme. Everything the brief asked for under spacing and
+radii is either already the design's value or an existing HeliBoard setting, and HeliBoard's
+settings are the right place for it because they are per-layout-type and per-orientation:
+
+| Design intent | Where it lives | Status |
+| --- | --- | --- |
+| key corner radius 9dp | `btn_keyboard_key_*_lxx_base_border.xml`, `btn_keyboard_key_popup_lxx_base.xml`, `btn_keyboard_key_action_normal_lxx_base.xml` | already 9dp everywhere a keycap is drawn, including popup keys |
+| panel / strip top radius 28dp | `keyboard_background_lxx_base_border.xml`, `keyboard_suggest_strip_lxx_base_border.xml` | already 28dp |
+| key height | *Appearance → Keyboard height scale* (`prefs_keyboard_height_scale`) | user setting, per layout type and orientation |
+| row / key gaps | *Appearance → Key gap scale* (`prefs_key_gap_scale`) | user setting; scales `horizontalGap`/`verticalGap` of the style |
+| bottom row height | *Appearance → Bottom row scale* (`prefs_bottom_row_scale`) | user setting |
+| bottom padding | *Appearance → Bottom padding scale* (`prefs_bottom_padding_scale`) | user setting |
+| side padding | *Appearance → Side padding scale* (`prefs_side_padding_scale`) | user setting |
+| suggestion strip height | `config_suggestions_strip_height` (40dp; 36dp in landscape) | matches the design's 45px on a 393px-wide panel |
+| suggestion areas | `config_center_suggestion_percentile` (36%) + `config_suggestions_count_in_strip` (3) + subtle dividers | three areas, as the design's `repeat(3, 1fr)`; the design is the thirds case of a percentile that also has to serve one- and two-word strips |
+
+The one geometry-adjacent thing that *is* theme-local is the divider: the rules between the three
+suggestion areas are now the palette's `DIVIDER` (`#30FFFFFF`) instead of the previous fixed
+`#18FFFFFF`, via the `dividerColor` hook described above. The divider drawable's size (1dp × 24dp)
+is unchanged, so the strip still measures and lays out exactly as before.
+
+Two things the design shows that HeliBoard's layout does not have were left alone deliberately:
+the mock's bottom row is five keys (utility, mode, globe, space, return), while HeliBoard's is a
+nine-key row that also carries the emoji/numpad/language switch keys, and the mock's strip spans
+its three areas with no edge keys while HeliBoard puts the toolbar/mic keys at the strip's ends.
+Both are layout decisions rather than styling, and both change what the keys do, so they are not
+part of a restyle.
 
 ## Font
 
@@ -198,36 +294,36 @@ different compositing mode, and it is opt-in per theme:
   `DefaultColors`. **Only `THEME_IOS27` passes one**; every other theme — and every
   user-defined theme — leaves it `null` and takes the untouched `MULTIPLY` path, so they
   render bit-for-bit as before.
-- Keys / functional keys / spacebar / action keys are tinted with `PorterDuff.Mode.SRC_IN`
-  instead. `SRC_IN` composites as `Sa * Da`, so the tint's alpha becomes real alpha, and
-  the drawable's own alpha channel masks it — which is what keeps the rounded corners and
-  the transparent "empty key" state.
-- Only keys are glassed. The panel is not a translucent surface: it is the user's background
-  image when one is set, and the flat panel colour otherwise. See *Background image* below.
+- Keys / functional keys / spacebar / action keys / popup keys are tinted with
+  `PorterDuff.Mode.SRC_IN` instead. `SRC_IN` composites as `Sa * Da`, so the tint's alpha
+  becomes real alpha, and the drawable's own alpha channel masks it — which is what keeps the
+  rounded corners and the transparent "empty key" state.
+- The **panel** is translucent too, but through the palette rather than through `GlassAlphas`:
+  `panelOverImage` states the panel colour that is painted *over* the user's background image, so
+  the panel becomes `image × panel colour` instead of the image itself. When there is no image,
+  the panel is that same translucent colour on its own. `panelScrim` can add one more dim layer
+  in between, independently.
 - Alphas are **scaled, not overwritten**: a colour that already carries alpha keeps its
   relative transparency, so a theme that states a deliberately faint colour is not made
   opaque by the glass layer.
 
-Alphas used:
+Alphas used — these are the palette's own, and `KEY_ALPHA` scales them:
 
-| Surface | Alpha |
+| Surface | Alpha (`KEY_ALPHA = 255`) |
 | --- | --- |
-| character keys | `0xAA` (design's own `#696b75aa`) |
-| character keys, pressed | `0xBB` |
-| functional keys / pressed | `0xB4` / `0xC6` |
-
-The panel is **not** in this table: it is opaque by design. A translucent panel would show
-the IME window's background, which is a platform colour this app does not control
-(`<application>` declares no theme), so the panel is either the user's background image or
-the flat `#2c2f38` — never a translucent slab.
+| character keys / spacebar | `0x66` (`#665B5F68`) |
+| character keys, pressed | `0x99` (`#997D828D`) |
+| functional keys | `0x44` (`#44333842`) |
+| action key | `0xFF` (`#FF626570`, opaque by design) |
+| panel | `0xCC` (`#CC202127`) |
 
 ### What you get, and what you give up
 
 With a **keyboard background image** set (HeliBoard's own feature, *Appearance → Keyboard
-background image*) the effect is the one the design wants: the image is the panel, the keys
-are genuinely translucent panes over it, and the suggestion strip is fully transparent over
-it, so the image shows through the keys and at full strength in the strip and in the gaps
-between keys. The text stays fully opaque, because the translucency lives in the key
+background image*) the effect is the one the design wants: the image sits behind a translucent
+slab, the keys are genuinely translucent panes over that, the suggestion strip draws nothing of
+its own (`Colors` makes it fully transparent whenever a background image is set) so it is simply
+part of the panel. The text stays fully opaque, because the translucency lives in the key
 *background* drawable, not in the view.
 
 Trade-offs, stated plainly:
@@ -239,26 +335,27 @@ Trade-offs, stated plainly:
    one theme its own copies of the key drawables and selecting them in code — the drawables
    are chosen by the keyboard *style*, which is shared with every other theme, so an
    alpha-ramped drawable there would flatten every other theme's keys instead.
-2. **Panel without a background image.** With no image, the panel is the flat `#2c2f38`
-   colour. It has to be opaque: behind the panel is the IME window's own background, an
-   opaque platform colour the app does not control (`<application>` declares no theme), so a
-   translucent panel would show an unpredictable colour rather than the app. Two ways to get
-   the design's material look instead: set a background image (then the image *is* the
-   panel), or accept the flat panel as the fallback.
-3. **The panel is the image.** When a background image is set, `Colors` puts the image
-   itself behind the keys. The panel is therefore not a translucent scrim *on top of* the
-   image — the image is not dimmed. If you want a frosted slab over the image instead (the
-   image visible but dimmed), that is a small change to the `MAIN_BACKGROUND` branch.
+2. **Panel without a background image.** With no image the panel is `#CC202127` on its own,
+   over the IME window's background — a platform colour this app does not declare and cannot
+   predict. That is the design's panel colour as specified, and it is what the palette asks for,
+   but the design assumes the backdrop is the user's (pre-blurred) image: set one, or raise
+   `PANEL_ALPHA` to 255-value opaque material, or add a `SCRIM_INTENSITY`, if the panel reads
+   wrong against a particular backdrop.
+3. **The panel dims the image.** The panel colour is painted over the image, so the image is
+   visible but dimmed (that is the "frosted slab" the design shows). To see the image at full
+   strength, raise the panel colour's alpha towards `#00202127` — the single entry `PANEL`.
 4. **Only the keyboard view.** The emoji and clipboard panels declare
    `android:background="@android:color/transparent"` in their layouts, so they were never
-   coloured by the panel path and are unaffected either way.
+   coloured by the panel path and are unaffected either way; they take the panel colour because
+   it shows through from behind them.
 5. **API floor.** `SRC_IN` composites the same way from API 21 up. `BlendModeColorFilterCompat`
    is still used for the key icons and text, which is where the tint alpha actually has to be
-   honoured on old APIs. The panel no longer uses a colour filter at all, so it has no API
+   honoured on old APIs. The panel does not use a colour filter at all, so it has no API
    dependence.
 
-To go back to fully opaque rendering, delete the `glassAlphas = GlassAlphas(…)` argument
-from the `THEME_IOS27` branch in `KeyboardTheme.kt`. Nothing else needs to change.
+To go back to fully opaque keys, set `KEY_ALPHA` to 255 and the alphas inside `KEY`,
+`PRESSED`, `MODIFIER` and `ACTION` to `FF`; to go back to an opaque panel, set `PANEL`'s alpha
+to `FF`. Everything is in `Ios27Palette`.
 
 ## Background image
 

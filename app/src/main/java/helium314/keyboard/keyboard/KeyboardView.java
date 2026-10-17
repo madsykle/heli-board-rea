@@ -36,6 +36,7 @@ import helium314.keyboard.latin.common.ColorType;
 import helium314.keyboard.latin.common.Colors;
 import helium314.keyboard.latin.common.Constants;
 import helium314.keyboard.latin.common.StringUtilsKt;
+import helium314.keyboard.latin.common.SurfaceShading;
 import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.suggestions.MoreSuggestions;
 import helium314.keyboard.latin.suggestions.MoreSuggestionsView;
@@ -61,6 +62,9 @@ public class KeyboardView extends View {
     private final Drawable mFunctionalKeyBackground;
     private final Drawable mActionKeyBackground;
     private final Drawable mSpacebarBackground;
+    /** REA fork: the theme's soft key shading, drawn untinted over every keycap; null = none */
+    @Nullable
+    private final Drawable mKeyShading;
     private final float mSpacebarIconWidthRatio;
     private final Rect mKeyBackgroundPadding = new Rect();
     private static final float KET_TEXT_SHADOW_RADIUS_DISABLED = -1.0f;
@@ -122,6 +126,19 @@ public class KeyboardView extends View {
             mActionKeyBackground = mColors.selectAndColorDrawable(keyboardViewAttr, ColorType.ACTION_KEY_POPUP_KEYS_BACKGROUND);
         else
             mActionKeyBackground = mColors.selectAndColorDrawable(keyboardViewAttr, ColorType.ACTION_KEY_BACKGROUND);
+
+        // REA fork: themes may ask for soft shading on their keys. A key surface is painted by
+        // tinting a drawable with the theme's key colour, and a tint can only multiply (glass keys:
+        // only replace) that colour, so it can never paint anything lighter than the surface. The
+        // highlight the design wants along the top edge is therefore a separate drawable that is not
+        // tinted, built once here like the key backgrounds themselves.
+        final SurfaceShading shading = mColors.getSurfaceShading();
+        if (shading == null) {
+            mKeyShading = null;
+        } else {
+            final float radius = shading.getKeyCornerRadiusDp() * getResources().getDisplayMetrics().density;
+            mKeyShading = shading.overlay(new float[] { radius, radius, radius, radius }, true);
+        }
 
         mSpacebarIconWidthRatio = keyboardViewAttr.getFloat(
                 R.styleable.KeyboardView_spacebarIconWidthRatio, 1.0f);
@@ -359,9 +376,10 @@ public class KeyboardView extends View {
         final int keyWidth = key.getDrawWidth();
         final int keyHeight = key.getHeight();
         final int bgWidth, bgHeight, bgX, bgY;
-        if (key.needsToKeepBackgroundAspectRatio(mDefaultKeyLabelFlags)
+        final boolean keepsAspectRatio = key.needsToKeepBackgroundAspectRatio(mDefaultKeyLabelFlags)
                 // HACK: To disable expanding normal/functional key background.
-                && !key.hasCustomActionLabel()) {
+                && !key.hasCustomActionLabel();
+        if (keepsAspectRatio) {
             bgWidth = (int) (background.getIntrinsicWidth() * mIconScaleFactor);
             bgHeight = (int) (background.getIntrinsicHeight() * mIconScaleFactor);
             bgX = (keyWidth - bgWidth) / 2;
@@ -376,6 +394,15 @@ public class KeyboardView extends View {
         background.setBounds(0, 0, bgWidth, bgHeight);
         canvas.translate(bgX, bgY);
         background.draw(canvas);
+        // REA fork: the theme's soft key shading, on top of the surface and never tinted.
+        // Only over a surface that really is the theme's rounded key rectangle: keys with no surface
+        // of their own (the emoji grid) are left alone, and so are the keys whose background is a
+        // different shape altogether (the oval action key of the long-press popup, which the design
+        // keeps as an oval).
+        if (mKeyShading != null && !keepsAspectRatio && key.getBackgroundType() != Key.BACKGROUND_TYPE_EMPTY) {
+            mKeyShading.setBounds(0, 0, bgWidth, bgHeight);
+            mKeyShading.draw(canvas);
+        }
         canvas.translate(-bgX, -bgY);
     }
 
