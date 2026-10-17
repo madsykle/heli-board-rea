@@ -289,7 +289,7 @@ public class KeyboardView extends View {
         // user's setting and the theme want them: a theme whose design leaves the corners empty turns
         // them off, and this also keeps the key label centred for keys that are off centre when hints
         // are shown (see onDrawKey).
-        mShowsHints = Settings.getValues().mShowsHints && mColors.showKeyHints;
+        mShowsHints = Settings.getValues().mShowsHints && mColors.getShowKeyHints();
         final float scale = Settings.getValues().mKeyboardHeightScale;
         mIconScaleFactor = scale < 0.8f ? scale + 0.2f : 1f;
         final Paint paint = mPaint;
