@@ -428,7 +428,7 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                 )
                 THEME_IOS27 -> DefaultColors(
                     themeStyle,
-                    hasKeyBorders,
+                    hasBorders,
                     Color.rgb(247, 206, 105), // accent — gesture trail, highlighted suggestion
                     Color.rgb(44, 47, 56),    // panel, light end of the 150deg ramp
                     Color.rgb(86, 88, 95),    // character keys, light end of the 160deg ramp
