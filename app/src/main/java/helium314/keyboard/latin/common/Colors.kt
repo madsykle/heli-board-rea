@@ -440,8 +440,13 @@ data class SurfaceShading(
     val panelTopCornerRadiusDp: Float,
 ) {
     /**
-     * The overlay for a surface with the rounded corners [cornerRadiiPx] (top-left, top-right,
-     * bottom-right, bottom-left order, as [android.graphics.drawable.GradientDrawable] wants it).
+     * The overlay for a surface whose corners [cornerRadiiPx] gives one radius each -- top-left,
+     * top-right, bottom-right, bottom-left, clockwise.
+     *
+     * [GradientDrawable] does not take one radius per corner: it wants every corner doubled into an
+     * x and a y radius, eight values in total, and hands the array straight to
+     * [android.graphics.Path.addRoundRect], which throws when it is shorter. Expanding the four
+     * corners happens here, where that contract lives, so callers keep saying one radius per corner.
      *
      * [GradientDrawable] spaces three colour stops evenly and offers nothing finer, so the *shape*
      * of the falloff is fixed: the top highlight fades out by the middle of the surface and the edge
@@ -452,7 +457,8 @@ data class SurfaceShading(
         intArrayOf(if (withTopHighlight) topHighlight else Color.TRANSPARENT, Color.TRANSPARENT, edgeShade)
     ).apply {
         shape = GradientDrawable.RECTANGLE
-        cornerRadii = cornerRadiiPx
+        // a corner that is a circle has the same x and y radius
+        cornerRadii = FloatArray(8) { i -> cornerRadiiPx.getOrElse(i / 2) { 0f } }
     }
 }
 
