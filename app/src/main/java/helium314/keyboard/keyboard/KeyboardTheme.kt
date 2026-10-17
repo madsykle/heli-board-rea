@@ -65,8 +65,9 @@ object Ios27Palette {
     val MODIFIER = 0x66505052.toInt()
     /** the action key: enter, search, done, send — the modifier's own colour, there is no lighter tier */
     val ACTION = MODIFIER
-    /** the keys inside a long-press popup, and the bubble that previews a single key press */
-    val POPUP_KEY = 0x99A0A0A6.toInt()
+    /** the long-press popup — panel and keys alike — and the key preview bubble: one step lighter
+     *  than the letter keys as they render, and fully opaque, so nothing shows through the popup */
+    val POPUP_KEY = 0xFF68686B.toInt()
     /** the rules between the suggestion areas */
     val DIVIDER = 0x18FFFFFF.toInt()
     // ---- text and icons -------------------------------------------------------------------------
@@ -580,13 +581,12 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     symbolLabel = Ios27Palette.SYMBOL_LABEL,
                     moreSuggestionsHint = Ios27Palette.SHOW_MORE_SUGGESTIONS_HINT,
                     shading = Ios27Palette.shading,
-                    // long-press popups and the more-suggestions popup use the same panel and key
-                    // palette as the keyboard they opened from; the popup's keys are a step lighter
-                    // than the letter keys, and the preview is a bubble that stops at the key rather
-                    // than a tail that connects the two
+                    // the design's popup is one opaque material: the panel, the keys in it and the
+                    // key preview bubble all take POPUP_KEY, so there is no frame of a different
+                    // colour around the keys and nothing of the keyboard shows through them
                     popupKeysBackground = Ios27Palette.popupKey,
                     popupPreviewBackground = Ios27Palette.popupKey,
-                    popupPanelBackground = Ios27Palette.panel,
+                    popupPanelBackground = Ios27Palette.popupKey,
                     previewAboveKey = Ios27Palette.PREVIEW_BUBBLE_ABOVE_KEY
                 )
                 else -> { // user-defined theme

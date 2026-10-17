@@ -40,12 +40,12 @@ are written the way the design writes them — as ARGB, with the opacity inside 
 
 | Palette entry | Value | Paints |
 | --- | --- | --- |
-| `PANEL` | `#CC202127` | the panel — and the suggestion strip, which is part of the same slab; also the long-press popup panel |
+| `PANEL` | `#CC202127` | the panel — and the suggestion strip, which is part of the same slab |
 | `KEY` | `#80707072` | character keys and the spacebar |
 | `PRESSED` | `#997D828D` | any key surface while it is held down |
 | `MODIFIER` | `#66505052` | functional keys: shift, delete, globe, mode keys, `123`, comma, period |
 | `ACTION` | = `MODIFIER` | the action key: enter, search, done, send |
-| `POPUP_KEY` | `#99A0A0A6` | the keys inside a long-press popup, and the key preview bubble |
+| `POPUP_KEY` | `#FF68686B` | the long-press popup, panel and keys alike, and the key preview bubble |
 | `CHARACTER` | `#FFF5F5F7` | key letters and suggestion text |
 | `SECONDARY_ICON` | `#B8C0C9` | corner hints, toolbar icons, spacebar label |
 | `DIVIDER` | `#18FFFFFF` | the rules between the suggestion areas |
@@ -110,10 +110,13 @@ does not pass them behaves exactly as upstream:
   height (24dp).
 - `popupKeysBackground`, `popupPreviewBackground`, `popupPanelBackground` — long-press popups and
   the more-suggestions popup are painted from a *brightened variant of the panel* upstream, which
-  would have made them out-of-palette panels rather than keys. This theme states `POPUP_KEY` (a step
-  lighter than the character keys), the same for the key preview, and the `PANEL` colour for the popup
-  panel, so a popup is the same material as the keyboard it opened from, including the pressed colour
-  (and the glass alphas). `null` for all three leaves upstream behaviour alone.
+  would have made them out-of-palette panels rather than keys. This theme states one colour for all
+  three — `POPUP_KEY`, the panel, the keys inside it and the key preview bubble — so a popup is one
+  flat material: no frame of a different colour around the keys, and, because the colour is opaque,
+  nothing of the keyboard underneath shows through it. `null` for all three leaves upstream alone.
+  (The popup's *pressed* key is still the palette's `PRESSED`, raised to the popup's own opacity by
+  `Colors.pressedVariant`, so pressing a popup key lightens it instead of letting the panel show
+  through.)
 - `symbolKeyLabel` — the label of the key that opens the symbols layout. The framework's own (and
   every locale file's) reads `?123`; the design says `123`, so the theme states `"123"`. Null keeps
   the locale's label, which localised keyboards still need (`KeyLabel`'s two call sites, the symbol
@@ -156,14 +159,16 @@ This theme separates them, through three small hooks:
   `KEY_RADIUS_DP`. It is a `TailClippedSurface`, so it keeps the style drawable's size and padding —
   the measurement and the text position are untouched, on the first press and on every reuse — and
   only stops painting at the key's top edge.
-- `popupPanelBackground` paints the panel itself: a flat `PANEL`-coloured rounded rectangle at
-  `KEY_RADIUS_DP` instead of the style's panel, whose *drop shadow* (five dark layers) would read as a
-  fill darker than the panel. The style's padding is kept, so the panel does not move or resize. The
-  keys of an action key popup have no panel of their own upstream, and are left without one.
+- `popupPanelBackground` paints the panel itself: a flat `POPUP_KEY`-coloured rounded rectangle at
+  `KEY_RADIUS_DP`, the *same* fill as the keys in it, instead of the style's panel — whose *drop
+  shadow* (five dark layers) read as a fill darker than the panel and whose colour is the keyboard's
+  own, which is what made a darker frame around the popup keys. The style's padding (1dp) is kept, so
+  the panel does not move or resize and stays within 1dp of the keys all round. The keys of an action
+  key popup have no panel of their own upstream, and are left without one.
 
-The popup *keys* keep the same treatment they had: `popupKeysBackground` gives them `POPUP_KEY`, and
-`btn_keyboard_key_popup_lxx_base.xml` gives them the keys' radius, so a popup looks like the keyboard
-it opened from.
+The popup *keys* take the same `POPUP_KEY` through `popupKeysBackground`, and
+`btn_keyboard_key_popup_lxx_base.xml` gives them the keys' radius, so panel and keys read as one
+surface with the alternatives laid out in it.
 
 ## Soft edges (edge shading, top highlight)
 
@@ -368,7 +373,7 @@ Alphas used — these are the palette's own, and `KEY_ALPHA` scales them:
 | character keys, pressed | `0x99` (`#997D828D`) |
 | functional keys | `0x66` (`#66505052`) |
 | action key | `0x66` (`#66505052`, the functional colour: the bottom row is one material) |
-| popup keys / key preview | `0x99` (`#99A0A0A6`) |
+| popup — panel, keys, key preview | `0xFF` (`#FF68686B`, opaque: nothing shows through the popup) |
 | panel | `0xA0` (`#CC202127` scaled by `PANEL_ALPHA` 200) |
 
 ### What you get, and what you give up
