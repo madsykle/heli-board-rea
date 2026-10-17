@@ -1,11 +1,15 @@
 name: Build APK
 
-# Builds an installable, debug-signed APK on GitHub's runners.
+# Builds installable APKs on GitHub's runners.
 # This is the intended way to build the fork: the maintainer works from Termux,
 # where the Android/Gradle toolchain is not available.
 #
 # The build fails if the privacy guard detects a network or personal-data
 # permission in the merged manifest, or if OS backup was re-enabled.
+#
+# Signing: if the KEYSTORE_BASE64 secret is set, a properly signed release APK
+# is built as well, so successive builds install over each other. Without it,
+# only the debug-signed APK is produced (throwaway key -> uninstall to update).
 
 on:
   push:
@@ -43,19 +47,58 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # Fails the build if the merged manifest declares INTERNET, contacts,
+      # Fails the build if a merged manifest declares INTERNET, contacts,
       # location or similar, or if android:allowBackup is not "false".
       - name: Privacy guard
-        run: ./gradlew privacyGuardDebugNoMinify --stacktrace
+        run: ./gradlew privacyGuardDebugNoMinify privacyGuardRelease --stacktrace
+
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "${KEYSTORE_BASE64}" ]; then
+            printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "$GITHUB_WORKSPACE/rea-release.jks"
+            echo "HAS_KEYSTORE=true" >> "$GITHUB_ENV"
+            echo "Keystore decoded: $(stat -c%s "$GITHUB_WORKSPACE/rea-release.jks") bytes"
+          else
+            echo "HAS_KEYSTORE=false" >> "$GITHUB_ENV"
+            echo "::warning::KEYSTORE_BASE64 is not set - skipping the signed release APK."
+          fi
 
       - name: Build debug APK
         run: ./gradlew assembleDebugNoMinify --stacktrace
 
-      - name: Upload APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: heliboard-rea-debug
           path: app/build/outputs/apk/debugNoMinify/*.apk
+          if-no-files-found: error
+
+      - name: Build signed release APK
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          REA_KEYSTORE_PATH: ${{ github.workspace }}/rea-release.jks
+          REA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          REA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          REA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Verify release APK signature
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          set -e
+          APK=$(ls app/build/outputs/apk/release/*.apk)
+          echo "Checking $APK"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$APK"
+
+      - name: Upload release APK
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: heliboard-rea-release
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
       - name: Upload reports on failure

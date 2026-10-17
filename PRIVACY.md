@@ -15,14 +15,28 @@ What we defend against:
 | --- | --- |
 | A dependency, asset or future commit silently adds network access | Build-time privacy guard (below) |
 | A vendor/OS silently pulling keyboard data off-device | `android:allowBackup="false"` |
-| The keyboard leaking clipboard contents into whatever text field is focused | clipboard suggestions off by default |
-| A copy of what you copy being retained on disk | clipboard history off by default, file retention off |
-| Typing/gesture traces being collected and mail-exported | gesture data gathering disabled, `GestureFileProvider` removed from the manifest |
 | The keyboard reading your address book | `READ_CONTACTS` removed from the manifest entirely |
+| Typing/gesture traces being collected and mail-exported | gesture data gathering disabled, `GestureFileProvider` removed from the manifest |
 
 Out of scope: a compromised OS or root attacker, and physical device access. Android's own
 `InputMethodService` boundary means anything you type already passes through the keyboard;
-this fork does not change that, it only makes sure nothing is stored or transmitted.
+this fork does not change that. What it changes is what the keyboard is *able* to send
+anywhere, and which of its data-retaining features are on out of the box.
+
+### Deliberately not mitigated
+
+These are known, accepted exposures. Listing them here so the rest of this document is not
+read as a stronger claim than it is:
+
+- **Clipboard.** Clipboard history, retention of copied files, and offering clipboard
+  content as a word suggestion are all **on by default, matching upstream**. That means
+  whatever you copy — including passwords and 2FA codes — can be offered as a suggestion in
+  any focused text field, and is retained in the local database for the retention period.
+  This was an explicit choice for this fork; the single line to change is
+  `PREF_SUGGEST_CLIPBOARD_CONTENT` in `latin/settings/Defaults.kt`.
+- **Personal dictionary / learned words** are stored locally and grow as you type.
+- **Keyboard input itself** is visible to the OS and to any app with an accessibility
+  service; no keyboard, including this one, can prevent that.
 
 ## Enforced invariant (the "guard")
 
@@ -112,9 +126,10 @@ Not yet verified:
 
 **Defaults** (`latin/settings/Defaults.kt`)
 
-- `PREF_ENABLE_CLIPBOARD_HISTORY` → `false`
-- `PREF_SUGGEST_CLIPBOARD_CONTENT` → `false`
-- `PREF_CLIPBOARD_USE_FILES` → `false`
+- Clipboard defaults are **unchanged from upstream** (`ENABLE_CLIPBOARD_HISTORY`,
+  `SUGGEST_CLIPBOARD_CONTENT` and `CLIPBOARD_USE_FILES` are all `true`) — see
+  "Deliberately not mitigated" above. An earlier revision of this fork set all three to
+  `false`; that was reverted at the maintainer's request.
 - `PREF_USE_CONTACTS` was already `false`; it is now unreachable because the permission is gone.
 
 **Gesture data gathering** (NLNet data-collection feature)
@@ -160,23 +175,47 @@ These are known open items, listed honestly rather than implied as finished:
 2. **Personal dictionary / learned words** are still stored locally and grow as you type.
    They never leave the device, but they are readable on a rooted device. Consider making
    `use personalized dictionaries` default-off, or encrypting the dictionary DB.
-3. **Release signing.** CI produces a debug-signed APK (installable, but the signing key is
-   regenerated per run, so each install needs an uninstall first). For updates that just
-   work, add a keystore as a repo secret and a signing config.
-4. **Crash reports**: the app can still write crash reports to its own files dir and export
+3. **Crash reports**: the app can still write crash reports to its own files dir and export
    them by hand. Local-only, but worth deleting if you never use it.
-5. **Decompiler pass over the APK**: the manifest and resource table are verified, but no
+4. **Decompiler pass over the APK**: the manifest and resource table are verified, but no
    pass has been made over `classes*.dex` to look for unexpected network/analytics code.
    The manifest permission list already makes network use impossible without a permission
    being present, but the dex check is the remaining belt-and-braces step.
+
+## Release signing
+
+`app/build.gradle.kts` reads the keystore from the environment
+(`REA_KEYSTORE_PATH`, `REA_KEYSTORE_PASSWORD`, `REA_KEY_ALIAS`, `REA_KEY_PASSWORD`) and only
+creates a `release` signing config when that file actually exists. If it is absent the
+release variant is left **unsigned** on purpose — it does not silently fall back to AGP's
+throwaway debug key.
+
+CI decodes `KEYSTORE_BASE64` into `$GITHUB_WORKSPACE/rea-release.jks` and, only when that
+secret is present, runs `assembleRelease`, calls `apksigner verify --print-certs` on the
+result, and uploads it as `heliboard-rea-release`. The release package is `com.rea.heliboard`
+(no `.debug` suffix), so it installs alongside the debug build but is the one to actually use.
+
+Repo secrets:
+
+| Secret | Value |
+| --- | --- |
+| `KEYSTORE_BASE64` | `base64 -w0 rea-release.jks` |
+| `KEYSTORE_PASSWORD` | keystore password |
+| `KEY_ALIAS` | key alias (e.g. `rea`) |
+| `KEY_PASSWORD` | key password |
+
+**If you lose this keystore you lose the ability to update an installed release build.**
+Keep a copy somewhere durable outside the repo. A committed keystore would be a permanent
+compromise, so it is deliberately not in version control.
 
 ## Building
 
 You cannot build this on Termux — no Android/Gradle toolchain there. Build on GitHub Actions:
 
 - Push to `main`, open a PR, or run the **Build APK** workflow manually.
-- Download the `heliboard-rea-debug` artifact, install it, enable the keyboard in
-  *Settings → System → Languages & input*.
+- Download the `heliboard-rea-release` artifact if signing is configured (recommended — it
+  installs over previous builds), otherwise `heliboard-rea-debug`.
+- Install, then enable the keyboard in *Settings → System → Languages & input*.
 
 ## Renaming
 

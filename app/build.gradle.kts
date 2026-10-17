@@ -30,12 +30,38 @@ android {
         proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }
 
+    // -----------------------------------------------------------------------
+    // Release signing (REA fork)
+    //
+    // The keystore is passed through the environment: CI decodes it from repo
+    // secrets, and a local build can point at it the same way. If it is absent
+    // the release variant stays unsigned, rather than silently falling back to
+    // AGP's throwaway debug key (which changes every CI run, so updates would
+    // need an uninstall first).
+    // -----------------------------------------------------------------------
+    val releaseKeystoreFile = System.getenv("REA_KEYSTORE_PATH")?.let { file(it) }
+    val hasReleaseSigning = releaseKeystoreFile?.exists() == true
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseKeystoreFile
+                storePassword = System.getenv("REA_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("REA_KEY_ALIAS") ?: "rea"
+                keyPassword = System.getenv("REA_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = false
             isDebuggable = false
             isJniDebuggable = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         create("nouserlib") { // same as release, but does not allow the user to provide a library
             isMinifyEnabled = true
