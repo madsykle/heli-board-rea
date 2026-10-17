@@ -28,9 +28,9 @@ off HeliBoard paints keys through a different, flat drawable.
 ## Palette
 
 The design's layers are translucent (`#696b75aa`, `#202127cc`, …) because they composite
-over the app behind them. An IME cannot blur or sample what is behind it on Android, so
-the palette stores the colours **already composited** onto the design's own panel. That is
-the colour you actually see in the Figma mock.
+over the app behind them. The palette stores the colours **already composited** onto the
+design's own panel, i.e. the hue you see in the Figma mock; the design's translucency is
+put back by the glass layer described below.
 
 | Design token | Design value | Theme field | Value used |
 | --- | --- | --- | --- |
@@ -58,14 +58,94 @@ tint       #56585F  ×              ×  #56585F
 rendered   #56585F  ──────────────►  #45474D      <- the design's two stops
 ```
 
-The panel is the same trick with three stops: white (1.0), `#A8A8A8` (0.66) at 45% height,
-then `#DEDEDE` (0.87). Tinting with `#2c2f38` reproduces the design's
+The suggestion strip uses the same trick with three stops: white (1.0), `#A8A8A8` (0.66) at
+45% height, then `#DEDEDE` (0.87). Tinting with `#2c2f38` reproduces the design's
 `#454957 → #202127 → #27282e` ramp.
+
+That ramp only ever shows on the suggestion strip. The panel *behind the keys* is not
+drawn from `keyboard_background_lxx_base_border.xml` at all: `KeyboardView.setKeyboard`
+replaces the main keyboard view's XML background with `Color.TRANSPARENT` ("actual
+background color/drawable is applied to main_keyboard_frame"), and `InputView` gives
+`main_keyboard_frame` a white background carrying the `background` colour as a `MODULATE`
+filter. So the panel behind the keys is one flat `#2c2f38`, and only the strip carries a
+ramp. The `keyboard_background_lxx_base_border.xml` restyle still matters for the emoji
+*search* keyboard, which does draw that drawable.
 
 This is why the drawables hold greyscale values and not the design's colours: **changing a
 theme's colours must not require editing the drawables, and editing a drawable changes
 every theme.** If you want to retune the ramp, edit the greyscale stops; if you want to
 retune the hue, edit the palette in `KeyboardTheme.kt`.
+
+## Glass: real translucency for this theme only
+
+The design composites the keyboard over the app behind it. `PorterDuff.Mode.MULTIPLY`
+cannot express that, no matter what alpha the tint carries: it composites alpha as
+`Sa + Da - Sa*Da`, so an opaque drawable stays opaque. Real translucency therefore needs a
+different compositing mode, and it is opt-in per theme:
+
+- `GlassAlphas` (in `latin/common/Colors.kt`) is a per-surface alpha bag passed to
+  `DefaultColors`. **Only `THEME_IOS27` passes one**; every other theme — and every
+  user-defined theme — leaves it `null` and takes the untouched `MULTIPLY` path, so they
+  render bit-for-bit as before.
+- Keys / functional keys / spacebar / action keys are tinted with `PorterDuff.Mode.SRC_IN`
+  instead. `SRC_IN` composites as `Sa * Da`, so the tint's alpha becomes real alpha, and
+  the drawable's own alpha channel masks it — which is what keeps the rounded corners and
+  the transparent "empty key" state.
+- The panel (the keyboard background behind the keys) is tinted through the existing
+  `MODULATE` colour filter, which already honours alpha, so giving the panel colour an
+  alpha is enough to make the panel translucent.
+- Alphas are **scaled, not overwritten**, for the state lists. Several surfaces carry a
+  deliberate alpha already (e.g. the suggestion strip's `0x22ffffff` press flash); those
+  must stay faint.
+
+Alphas used:
+
+| Surface | Alpha |
+| --- | --- |
+| character keys | `0xAA` (design's own `#696b75aa`) |
+| character keys, pressed | `0xBB` (design's own `#4b4d57bb`) |
+| functional keys / pressed | `0xB4` / `0xC6` |
+| panel, suggestion strip | `0xC8` |
+
+The panel keeps a higher alpha than the keys because it is the only near-opaque base in the
+one case where there is nothing else behind it — see below.
+
+### What you get, and what you give up
+
+With a **keyboard background image** set (HeliBoard's own feature, *Appearance → Keyboard
+background image*) the effect is the one the design wants: the image is the panel, the keys
+and strip are genuinely translucent panes over it, so the image shows through the keys and
+at full strength in the gaps between them. The text stays fully opaque, because the
+translucency lives in the key *background* drawable, not in the view.
+
+Trade-offs, stated plainly:
+
+1. **The baked colour ramps stop being visible on glassed surfaces.** `SRC_IN` takes only
+   the tint's colour, so a surface becomes one flat translucent colour per state instead of
+   a light-to-dark ramp. The design's key ramp is subtle and its *alpha* ramp is kept (via
+   the pressed state), but the RGB ramp on keys and on the suggestion strip is gone. This
+   is unavoidable without giving this one theme its own copies of the key drawables and
+   selecting them in code — the drawables are chosen by the keyboard *style*, which is
+   shared with every other theme, so an alpha-ramped drawable there would flatten every
+   other theme's keys instead.
+2. **Panel without a background image.** With no image, the panel composite is over the IME
+   window's own background, which is an opaque platform colour the app does not control
+   (`<application>` declares no theme). So the panel is genuinely translucent, but what
+   shows through is that window colour, not the app. The high `0xC8` alpha keeps that safe
+   on a light window background. With an image set this does not apply at all.
+3. **The panel is the image.** When a background image is set, `Colors` puts the image
+   itself behind the keys. The panel is therefore not a translucent scrim *on top of* the
+   image — the image is not dimmed. If you want a frosted slab over the image instead (the
+   image visible but dimmed), that is a small change to the `MAIN_BACKGROUND` branch.
+4. **Only the keyboard view.** The emoji and clipboard panels declare
+   `android:background="@android:color/transparent"` in their layouts, so they were never
+   coloured by the panel path and are unaffected either way.
+5. **API floor.** `SRC_IN` composites the same way from API 21 up. The panel keeps using the
+   app's existing `MODULATE` helper (`BlendModeColorFilterCompat`), which honours alpha on
+   every supported API, so the panel alpha behaves the same on old and new devices.
+
+To go back to fully opaque rendering, delete the `glassAlphas = GlassAlphas(…)` argument
+from the `THEME_IOS27` branch in `KeyboardTheme.kt`. Nothing else needs to change.
 
 ## Approximated or not reproducible
 
@@ -73,10 +153,10 @@ Stated plainly, because these are the places where the build will not look exact
 Figma:
 
 1. **No backdrop blur.** `backdrop-filter: blur(40px) saturate(140%)` cannot be done by an
-   IME. The panel is rendered opaque instead of frosted. This is the single biggest
-   visual difference. Android 12+ does have cross-window blur
-   (`WindowManager.LayoutParams.setBackgroundBlurRadius`), which could approximate it on
-   supporting devices, but it is device-dependent and was not attempted.
+   IME. The keyboard surfaces are genuinely translucent instead (see *Glass* above), so
+   what is behind them shows through, but it is not blurred. Android 12+ does have
+   cross-window blur (`WindowManager.LayoutParams.setBackgroundBlurRadius`), which could
+   approximate it on supporting devices, but it is device-dependent and was not attempted.
 2. **No inset top highlight on keys.** `inset 0 1px 0 #ffffff25` needs a highlight
    *lighter* than the key colour. MULTIPLY can only darken, so the highlight would render
    as the key colour and vanish. Omitted rather than faked.

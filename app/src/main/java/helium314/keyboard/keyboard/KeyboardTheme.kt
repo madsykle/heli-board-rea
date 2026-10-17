@@ -20,6 +20,7 @@ import helium314.keyboard.latin.common.ColorType
 import helium314.keyboard.latin.common.Colors
 import helium314.keyboard.latin.common.DefaultColors
 import helium314.keyboard.latin.common.DynamicColors
+import helium314.keyboard.latin.common.GlassAlphas
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.ResourceUtils
@@ -439,7 +440,20 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     Color.rgb(245, 245, 247), // suggestion text
                     Color.rgb(197, 199, 208), // spacebar text
                     Color.rgb(247, 206, 105), // gesture trail
-                    keyboardBackground = backgroundImage
+                    keyboardBackground = backgroundImage,
+                    // The design paints the panel and keys as translucent material over the app behind
+                    // it. Android IME windows cannot blur what is behind them, so the glass is faked by
+                    // making the surfaces genuinely translucent: whatever is behind (a user background
+                    // image, or the window background) then shows through them. Alphas are the design's
+                    // own where the design states one; the panel keeps a higher alpha because it is the
+                    // only opaque-ish base when no keyboard background image is set.
+                    glassAlphas = GlassAlphas(
+                        key = 0xAA,                 // design: #696b75aa
+                        keyPressed = 0xBB,          // design: #4b4d57bb
+                        functionalKey = 0xB4,
+                        functionalKeyPressed = 0xC6,
+                        panel = 0xC8
+                    )
                 )
                 else -> { // user-defined theme
                     val colorSettings = readUserColors(prefs, themeName)

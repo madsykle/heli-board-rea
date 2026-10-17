@@ -367,6 +367,27 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
     }
 }
 
+/**
+ * Per-surface alphas for a theme that fakes glass surfaces, i.e. that wants the keyboard material to
+ * be genuinely translucent so whatever sits behind it shows through. An alpha of 255 (opaque) leaves
+ * the surface rendering exactly as it does for every other theme.
+ *
+ * These are alphas, not colors: the surface color still comes from the theme, only its opacity is
+ * overridden. See [DefaultColors.setColor] for how the alpha is applied.
+ */
+data class GlassAlphas(
+    /** character keys */
+    val key: Int,
+    /** character keys while pressed */
+    val keyPressed: Int,
+    /** functional keys (shift / delete / globe) */
+    val functionalKey: Int,
+    /** functional keys while pressed */
+    val functionalKeyPressed: Int,
+    /** the keyboard panel behind the keys, and the suggestion strip */
+    val panel: Int,
+)
+
 class DefaultColors (
     override val themeStyle: String,
     override val hasKeyBorders: Boolean,
@@ -381,6 +402,8 @@ class DefaultColors (
     private val spaceBarText: Int = keyHintText,
     private val gesture: Int = accent,
     private var keyboardBackground: Drawable? = null,
+    /** non-null only for themes that want translucent "glass" surfaces; others keep opaque rendering */
+    private val glassAlphas: GlassAlphas? = null,
 ) : Colors {
     private val navBar: Int
     /** brightened or darkened variant of [background], to be used if exact background color would be
@@ -412,6 +435,15 @@ class DefaultColors (
         else brighten(brighten(suggestionText))
     )
     private var backgroundSetupDone = false
+
+    /** translucent variants of the surface state lists, built only when [glassAlphas] is set */
+    private val glassKeyStateList: ColorStateList?
+    private val glassFunctionalKeyStateList: ColorStateList?
+    private val glassActionKeyStateList: ColorStateList?
+    private val glassSpaceBarStateList: ColorStateList?
+    private val glassStripBackgroundList: ColorStateList?
+    /** panel (keyboard background) tint carrying [GlassAlphas.panel]; null for opaque themes */
+    private val glassBackgroundFilter: ColorFilter?
 
     init {
         if (isDarkColor(background)) {
@@ -473,6 +505,20 @@ class DefaultColors (
             isBrightColor(accent) -> colorFilter(Color.DKGRAY)
             else -> null
         }
+
+        // Translucent copies of the surface lists, for themes that fake glass. Deriving them from the
+        // opaque lists keeps the no-key-borders case (transparent character keys) and all the pressed
+        // colors identical, and only overrides opacity.
+        glassKeyStateList = glassAlphas?.let { keyStateList.withGlassAlpha(it.key, it.keyPressed) }
+        glassFunctionalKeyStateList = glassAlphas?.let {
+            functionalKeyStateList.withGlassAlpha(it.functionalKey, it.functionalKeyPressed)
+        }
+        glassActionKeyStateList = glassAlphas?.let {
+            actionKeyStateList.withGlassAlpha(it.functionalKey, it.functionalKeyPressed)
+        }
+        glassSpaceBarStateList = glassAlphas?.let { spaceBarStateList.withGlassAlpha(it.key, it.keyPressed) }
+        glassStripBackgroundList = glassAlphas?.let { stripBackgroundList.withGlassAlpha(it.panel, it.panel) }
+        glassBackgroundFilter = glassAlphas?.let { colorFilter(ColorUtils.setAlphaComponent(background, it.panel)) }
     }
 
     override fun get(color: ColorType): Int = when (color) {
@@ -499,6 +545,25 @@ class DefaultColors (
     }
 
     override fun setColor(drawable: Drawable, color: ColorType) {
+        // Glass themes replace the tint instead of multiplying it. MULTIPLY composites alpha as
+        // Sa + Da - Sa*Da, so an opaque drawable stays opaque whatever alpha the tint carries.
+        // SRC_IN composites as Sa * Da, so the tint alpha becomes real translucency and the
+        // drawable's alpha (its rounded corners, and the transparent empty-key state) masks the
+        // tint. Only the tint's color survives SRC_IN, so the baked color ramp in the drawable
+        // does not; the surface becomes one flat translucent color per state.
+        val glassStateList = when (color) {
+            KEY_BACKGROUND -> glassKeyStateList
+            FUNCTIONAL_KEY_BACKGROUND -> glassFunctionalKeyStateList
+            ACTION_KEY_BACKGROUND -> glassActionKeyStateList
+            SPACE_BAR_BACKGROUND -> glassSpaceBarStateList
+            STRIP_BACKGROUND -> glassStripBackgroundList
+            else -> null
+        }
+        if (glassStateList != null) {
+            DrawableCompat.setTintMode(drawable, PorterDuff.Mode.SRC_IN)
+            DrawableCompat.setTintList(drawable, glassStateList)
+            return
+        }
         val colorStateList = when (color) {
             MORE_SUGGESTIONS_WORD_BACKGROUND -> backgroundStateList
             KEY_BACKGROUND -> keyStateList
@@ -544,7 +609,9 @@ class DefaultColors (
                     }
                     view.background = keyboardBackground
                 } else {
-                    view.background.colorFilter = backgroundFilter
+                    // a glass theme carries its alpha on the panel tint; MODULATE multiplies the tint alpha
+                    // with the white view background, so the panel really does become translucent
+                    view.background.colorFilter = glassBackgroundFilter ?: backgroundFilter
                 }
             }
             else -> view.background.colorFilter = backgroundFilter
@@ -619,6 +686,28 @@ private fun pressedStateList(pressed: Int, normal: Int): ColorStateList {
 private fun activatedStateList(activated: Int, normal: Int): ColorStateList {
     val states = arrayOf(intArrayOf(android.R.attr.state_activated), intArrayOf(-android.R.attr.state_activated))
     return ColorStateList(states, intArrayOf(activated, normal))
+}
+
+/**
+ * Copy of this list with every visible color's alpha scaled by [normalAlpha], or by [pressedAlpha]
+ * for the pressed state. Used to derive the translucent "glass" variants of the surface lists from
+ * the opaque ones, so the only difference between a glass theme and a normal one is opacity.
+ *
+ * Scaling (rather than overwriting) matters: several surface colors already carry a deliberate alpha,
+ * e.g. the suggestion strip's faint white press flash (0x22ffffff), and those must stay faint.
+ * Fully transparent entries stay transparent.
+ */
+private fun ColorStateList.withGlassAlpha(normalAlpha: Int, pressedAlpha: Int): ColorStateList {
+    val states = Array(stateCount) { getStateSet(it) ?: intArrayOf() }
+    val colors = IntArray(stateCount) { i ->
+        val color = getColorForState(states[i], Color.TRANSPARENT)
+        if (Color.alpha(color) == 0) color
+        else {
+            val factor = if (states[i].contains(android.R.attr.state_pressed)) pressedAlpha else normalAlpha
+            ColorUtils.setAlphaComponent(color, Color.alpha(color) * factor / 255)
+        }
+    }
+    return ColorStateList(states, colors)
 }
 
 enum class ColorType {
