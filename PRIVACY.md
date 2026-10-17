@@ -75,7 +75,17 @@ CI runs this as a named step, so the check is visible in the log before the APK 
 
 - `applicationId` → `com.rea.heliboard` (debug builds get `.debug`), so this installs
   side by side with upstream HeliBoard without a signature or provider-authority clash.
-- `clipboard_provider_authority` → `com.rea.heliboard.clipprovider`.
+- `clipboard_provider_authority` → `com.rea.heliboard.clipprovider` in
+  `res/values/clip_provider.xml`, **and** in the build-type overrides
+  `res/values/clip_provider.xml` under `src/debug/` and `src/debugNoMinify/`.
+  Those overrides exist upstream and hardcode `helium314.keyboard.debug.clipprovider`;
+  leaving them alone would have given debug builds a non-fork authority and collided
+  with upstream's own debug build.
+- Display name → "HeliBoard (REA)" / "HeliBoard (REA) debug"
+  (`values/donottranslate.xml` plus the two debug `strings.xml` overrides), so the IME
+  picker shows which keyboard is which when both are installed. The translatable
+  in-app titles ("HeliBoard Settings", "HeliBoard Spell Checker") were deliberately
+  left as upstream to avoid churning ~100 translation files.
 - `versionName` → `4.2-rea.1`.
 
 **Themes** (`keyboard/KeyboardTheme.kt`, `res/values/strings.xml`)

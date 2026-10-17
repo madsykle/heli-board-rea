@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="clipboard_provider_authority" translatable="false">helium314.keyboard.debug.clipprovider</string>
+    <!-- REA fork: see app/src/debug/res/values/clip_provider.xml -->
+    <string name="clipboard_provider_authority" translatable="false">com.rea.heliboard.debug.clipprovider</string>
 </resources>

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="clipboard_provider_authority" translatable="false">helium314.keyboard.debug.clipprovider</string>
+    <!-- REA fork: debug variants must not reuse upstream's debug authority, otherwise
+         this fork's debug build collides with a debug build of upstream HeliBoard. -->
+    <string name="clipboard_provider_authority" translatable="false">com.rea.heliboard.debug.clipprovider</string>
 </resources>
