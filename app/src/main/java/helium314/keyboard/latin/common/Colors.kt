@@ -480,24 +480,34 @@ class DefaultColors (
         }
 
         adjustedBackgroundFilter = colorFilter(adjustedBackground)
+        // [pressed, normal] for each surface, so the opaque list and (for glass themes) the translucent
+        // one are built from exactly the same colors and cannot drift apart.
+        val keyColors: IntArray
+        val functionalKeyColors: IntArray
+        val actionKeyColors: IntArray
+        val spaceBarColors: IntArray
         if (hasKeyBorders) {
             backgroundStateList = pressedStateList(brightenOrDarken(background, true), background)
-            keyStateList = if (themeStyle == STYLE_HOLO) pressedStateList(keyBackground, keyBackground)
-                else pressedStateList(brightenOrDarken(keyBackground, true), keyBackground)
-            functionalKeyStateList = pressedStateList(brightenOrDarken(functionalKey, true), functionalKey)
-            actionKeyStateList = if (themeStyle == STYLE_HOLO) functionalKeyStateList
-                else pressedStateList(brightenOrDarken(accent, true), accent)
-            spaceBarStateList = if (themeStyle == STYLE_HOLO) pressedStateList(spaceBar, spaceBar)
-                else pressedStateList(brightenOrDarken(spaceBar, true), spaceBar)
+            keyColors = if (themeStyle == STYLE_HOLO) intArrayOf(keyBackground, keyBackground)
+                else intArrayOf(brightenOrDarken(keyBackground, true), keyBackground)
+            functionalKeyColors = intArrayOf(brightenOrDarken(functionalKey, true), functionalKey)
+            actionKeyColors = if (themeStyle == STYLE_HOLO) functionalKeyColors
+                else intArrayOf(brightenOrDarken(accent, true), accent)
+            spaceBarColors = if (themeStyle == STYLE_HOLO) intArrayOf(spaceBar, spaceBar)
+                else intArrayOf(brightenOrDarken(spaceBar, true), spaceBar)
         } else {
             // need to set color to background if key borders are disabled, or there will be ugly keys
             backgroundStateList = pressedStateList(brightenOrDarken(background, true), background)
-            keyStateList = pressedStateList(keyBackground, Color.TRANSPARENT)
-            functionalKeyStateList = keyStateList
-            actionKeyStateList = if (themeStyle == STYLE_HOLO) functionalKeyStateList
-                else pressedStateList(brightenOrDarken(accent, true), accent)
-            spaceBarStateList = pressedStateList(brightenOrDarken(spaceBar, true), spaceBar)
+            keyColors = intArrayOf(keyBackground, Color.TRANSPARENT)
+            functionalKeyColors = keyColors
+            actionKeyColors = if (themeStyle == STYLE_HOLO) functionalKeyColors
+                else intArrayOf(brightenOrDarken(accent, true), accent)
+            spaceBarColors = intArrayOf(brightenOrDarken(spaceBar, true), spaceBar)
         }
+        keyStateList = pressedStateList(keyColors[0], keyColors[1])
+        functionalKeyStateList = pressedStateList(functionalKeyColors[0], functionalKeyColors[1])
+        actionKeyStateList = pressedStateList(actionKeyColors[0], actionKeyColors[1])
+        spaceBarStateList = pressedStateList(spaceBarColors[0], spaceBarColors[1])
         keyTextFilter = colorFilter(keyText)
         actionKeyIconColorFilter = when {
             themeStyle == STYLE_HOLO -> keyTextFilter
@@ -506,18 +516,33 @@ class DefaultColors (
             else -> null
         }
 
-        // Translucent copies of the surface lists, for themes that fake glass. Deriving them from the
-        // opaque lists keeps the no-key-borders case (transparent character keys) and all the pressed
-        // colors identical, and only overrides opacity.
-        glassKeyStateList = glassAlphas?.let { keyStateList.withGlassAlpha(it.key, it.keyPressed) }
-        glassFunctionalKeyStateList = glassAlphas?.let {
-            functionalKeyStateList.withGlassAlpha(it.functionalKey, it.functionalKeyPressed)
+        // Translucent copies of the surface lists, for themes that fake glass. Built from the same
+        // [pressed, normal] colors as the opaque lists, so the no-key-borders case (transparent
+        // character keys) and all the pressed colors stay identical and only opacity differs.
+        glassKeyStateList = glassAlphas?.let { glass ->
+            pressedStateList(keyColors[0].scaledAlpha(glass.keyPressed), keyColors[1].scaledAlpha(glass.key))
         }
-        glassActionKeyStateList = glassAlphas?.let {
-            actionKeyStateList.withGlassAlpha(it.functionalKey, it.functionalKeyPressed)
+        glassFunctionalKeyStateList = glassAlphas?.let { glass ->
+            pressedStateList(
+                functionalKeyColors[0].scaledAlpha(glass.functionalKeyPressed),
+                functionalKeyColors[1].scaledAlpha(glass.functionalKey)
+            )
         }
-        glassSpaceBarStateList = glassAlphas?.let { spaceBarStateList.withGlassAlpha(it.key, it.keyPressed) }
-        glassStripBackgroundList = glassAlphas?.let { stripBackgroundList.withGlassAlpha(it.panel, it.panel) }
+        glassActionKeyStateList = glassAlphas?.let { glass ->
+            pressedStateList(
+                actionKeyColors[0].scaledAlpha(glass.functionalKeyPressed),
+                actionKeyColors[1].scaledAlpha(glass.functionalKey)
+            )
+        }
+        glassSpaceBarStateList = glassAlphas?.let { glass ->
+            pressedStateList(spaceBarColors[0].scaledAlpha(glass.keyPressed), spaceBarColors[1].scaledAlpha(glass.key))
+        }
+        glassStripBackgroundList = glassAlphas?.let { glass ->
+            pressedStateList(
+                pressedStripElementBackground.scaledAlpha(glass.panel),
+                stripBackground.scaledAlpha(glass.panel)
+            )
+        }
         glassBackgroundFilter = glassAlphas?.let { colorFilter(ColorUtils.setAlphaComponent(background, it.panel)) }
     }
 
@@ -689,26 +714,17 @@ private fun activatedStateList(activated: Int, normal: Int): ColorStateList {
 }
 
 /**
- * Copy of this list with every visible color's alpha scaled by [normalAlpha], or by [pressedAlpha]
- * for the pressed state. Used to derive the translucent "glass" variants of the surface lists from
- * the opaque ones, so the only difference between a glass theme and a normal one is opacity.
+ * This color with its alpha scaled by [factor] (out of 255). Used to derive the translucent "glass"
+ * variants of the surface colors from the opaque ones, so the only difference between a glass theme
+ * and a normal one is opacity.
  *
- * Scaling (rather than overwriting) matters: several surface colors already carry a deliberate alpha,
- * e.g. the suggestion strip's faint white press flash (0x22ffffff), and those must stay faint.
- * Fully transparent entries stay transparent.
+ * Scaling rather than overwriting matters: several surface colors already carry a deliberate alpha,
+ * e.g. the suggestion strip's faint white press flash (`0x22ffffff`), and those must stay faint.
+ * Fully transparent colors stay transparent.
  */
-private fun ColorStateList.withGlassAlpha(normalAlpha: Int, pressedAlpha: Int): ColorStateList {
-    val states = Array(stateCount) { getStateSet(it) ?: intArrayOf() }
-    val colors = IntArray(stateCount) { i ->
-        val color = getColorForState(states[i], Color.TRANSPARENT)
-        if (Color.alpha(color) == 0) color
-        else {
-            val factor = if (states[i].contains(android.R.attr.state_pressed)) pressedAlpha else normalAlpha
-            ColorUtils.setAlphaComponent(color, Color.alpha(color) * factor / 255)
-        }
-    }
-    return ColorStateList(states, colors)
-}
+private fun Int.scaledAlpha(factor: Int): Int =
+    if (Color.alpha(this) == 0) this
+    else ColorUtils.setAlphaComponent(this, Color.alpha(this) * factor / 255)
 
 enum class ColorType {
     ACTION_KEY_ICON,
