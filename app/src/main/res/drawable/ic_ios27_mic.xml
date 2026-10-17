@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    iOS 27 Dark theme only: the design's mic (voice input) key.
+    Source: the design's inline SVG (viewBox 0 0 24 28), ported to a 24dp vector.
+    The capsule is the filled rect of the design; the stand is stroked, as in the design.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:scaleX="0.8571"
+        android:scaleY="0.8571"
+        android:translateX="1.7143">
+        <path
+            android:pathData="M8,6 a4,4 0 0 1 8,0 V13 a4,4 0 0 1 -8,0 Z"
+            android:fillColor="#FFF" />
+        <path
+            android:pathData="M5,13.5 v0.8 a7,7 0 0 0 14,0 v-0.8 M12,21.3 V26 M8,26 H16"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFF"
+            android:strokeWidth="1.8"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

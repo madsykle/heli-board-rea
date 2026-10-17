@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    iOS 27 Dark theme only: the design's globe (language switch) key.
+    Source: the design's inline SVG (viewBox 0 0 26 26), ported to a 24dp vector.
+    The circle is expressed as two arcs because VectorDrawable has no <circle>.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:scaleX="0.9231"
+        android:scaleY="0.9231">
+        <path
+            android:pathData="M13,3 a10,10 0 1 0 0,20 a10,10 0 1 0 0,-20 Z"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFF"
+            android:strokeWidth="1.7" />
+        <path
+            android:pathData="M3,13 H23 M13,3 c3,3 4.2,6.3 4.2,10 S16,20 13,23 c-3,-3 -4.2,-6.3 -4.2,-10 S10,6 13,3 Z"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFF"
+            android:strokeWidth="1.7" />
+    </group>
+</vector>

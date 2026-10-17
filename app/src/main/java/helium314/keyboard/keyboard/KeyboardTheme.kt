@@ -149,18 +149,34 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
             return if (themeId == THEME_ID_LXX_BASE || themeId == THEME_ID_ROUNDED_BASE) Key.LABEL_FLAGS_KEEP_BACKGROUND_ASPECT_RATIO else 0
         }
 
+        /** Whether the night colours apply right now, honouring the preview of the settings app. */
+        private fun isNight(context: Context, prefs: SharedPreferences) = SettingsActivity.forceNight
+            ?: (ResourceUtils.isNight(context.resources) && prefs.getBoolean(Settings.PREF_THEME_DAY_NIGHT, Defaults.PREF_THEME_DAY_NIGHT))
+
+        /**
+         * Name of the colour theme that is in use right now, honouring the theme preview of the
+         * settings app ([SettingsActivity.forceTheme] / [SettingsActivity.forceNight]).
+         *
+         * REA fork: a theme's design is more than its colours, so this is also what the parts that
+         * are not in [Colors] look up - the bundled font and the icon set of iOS 27 Dark.
+         */
         @JvmStatic
-        fun getColorsForCurrentTheme(context: Context): Colors {
+        fun getCurrentColorThemeName(context: Context): String {
             val prefs = context.prefs()
-            val isNight = SettingsActivity.forceNight
-                ?: (ResourceUtils.isNight(context.resources) && prefs.getBoolean(Settings.PREF_THEME_DAY_NIGHT, Defaults.PREF_THEME_DAY_NIGHT))
-            val themeName = SettingsActivity.forceTheme ?: if (isNight)
+            val themeName = SettingsActivity.forceTheme ?: if (isNight(context, prefs))
                 prefs.getString(Settings.PREF_THEME_COLORS_NIGHT, Defaults.PREF_THEME_COLORS_NIGHT)
             else
                 prefs.getString(Settings.PREF_THEME_COLORS, Defaults.PREF_THEME_COLORS)
+            return themeName!!
+        }
+
+        @JvmStatic
+        fun getColorsForCurrentTheme(context: Context): Colors {
+            val prefs = context.prefs()
+            val themeName = getCurrentColorThemeName(context)
             val themeStyle = prefs.getString(Settings.PREF_THEME_STYLE, Defaults.PREF_THEME_STYLE)
 
-            return getThemeColors(themeName!!, themeStyle!!, context, prefs, isNight)
+            return getThemeColors(themeName, themeStyle!!, context, prefs, isNight(context, prefs))
         }
 
         private fun getThemeColors(themeName: String, themeStyle: String, context: Context, prefs: SharedPreferences, isNight: Boolean): Colors {
@@ -430,7 +446,7 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                 THEME_IOS27 -> DefaultColors(
                     themeStyle,
                     hasBorders,
-                    Color.rgb(247, 206, 105), // accent — gesture trail, highlighted suggestion
+                    Color.rgb(247, 206, 105), // accent — swipe trail and selection highlights, not the action key
                     Color.rgb(44, 47, 56),    // panel, light end of the 150deg ramp
                     Color.rgb(86, 88, 95),    // character keys, light end of the 160deg ramp
                     Color.rgb(47, 50, 60),    // functional keys (shift/delete/return/globe)
@@ -441,19 +457,31 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     Color.rgb(197, 199, 208), // spacebar text
                     Color.rgb(247, 206, 105), // gesture trail
                     keyboardBackground = backgroundImage,
-                    // The design paints the panel and keys as translucent material over the app behind
-                    // it. Android IME windows cannot blur what is behind them, so the glass is faked by
-                    // making the surfaces genuinely translucent: whatever is behind (a user background
-                    // image, or the window background) then shows through them. Alphas are the design's
-                    // own where the design states one; the panel keeps a higher alpha because it is the
-                    // only opaque-ish base when no keyboard background image is set.
+                    // The design paints the panel and the keys as translucent material over the app
+                    // behind it. Android IME windows can neither blur nor see through the app, so the
+                    // glass is faked: the keys are made genuinely translucent, so a user background
+                    // image shows through them. The panel is deliberately *not* translucent. With a
+                    // background image it is that image; without one the only thing behind it is the
+                    // IME window background, which this app does not declare and can be any color, so
+                    // the panel stays the design's flat opaque color (#2c2f38). Alphas are the
+                    // design's own where it states one (its keys are #696b75aa / #4b4d57bb).
                     glassAlphas = GlassAlphas(
                         key = 0xAA,                 // design: #696b75aa
                         keyPressed = 0xBB,          // design: #4b4d57bb
                         functionalKey = 0xB4,
-                        functionalKeyPressed = 0xC6,
-                        panel = 0xC8
-                    )
+                        functionalKeyPressed = 0xC6
+                    ),
+                    // The design's pressed key is a big step lighter than the resting key
+                    // (.key:active is #888b99, against #696b75aa/#4b4d57bb at rest), much more than
+                    // the standard one-step brighten. Theme-local, so every other theme keeps the
+                    // standard step.
+                    pressedKeyColor = Color.rgb(136, 139, 153), // #888b99
+                    // HeliBoard paints the action key (enter / search / done) with the accent, which
+                    // here is the gold of the swipe trail. The design wants a neutral key for it, so
+                    // the action key gets its own grey and the gold stays on the trail.
+                    actionKeyBackground = Color.rgb(111, 114, 124), // #6f727c, lighter than the character keys
+                    // The design puts nothing in the key corners: no hint labels, no hint icons.
+                    showKeyHints = false
                 )
                 else -> { // user-defined theme
                     val colorSettings = readUserColors(prefs, themeName)

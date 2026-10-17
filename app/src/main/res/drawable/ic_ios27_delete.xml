@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    iOS 27 Dark theme only: the design's delete (backspace) key.
+    Source: the design's inline SVG (viewBox 0 0 32 24), ported to a 24dp vector with the
+    design's aspect ratio kept, so the icon's intrinsic size - the size HeliBoard draws at -
+    is the same 24dp as every other keyboard icon.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:scaleX="0.75"
+        android:scaleY="0.75"
+        android:translateY="3">
+        <path
+            android:pathData="M11,3 L3,12 L11,21 H27 c1.1,0 2,-0.9 2,-2 V5 c0,-1.1 -0.9,-2 -2,-2 H11 Z"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFF"
+            android:strokeWidth="1.8"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M15,8 L23,16 M23,8 L15,16"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFF"
+            android:strokeWidth="1.8"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

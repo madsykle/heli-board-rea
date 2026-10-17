@@ -28,7 +28,7 @@ class KeyboardIconsSet private constructor() {
             else -> keyboardIconsMaterial
         }
         val overrideIds = customIconIds(context, prefs)
-        val ids = if (overrideIds.isEmpty()) defaultIds else defaultIds + overrideIds
+        val ids = defaultIds + themeIconIds(context) + overrideIds
         if (!needsReload && ids == iconIds) return
         iconIds = ids
         iconsByName.clear()
@@ -47,6 +47,16 @@ class KeyboardIconsSet private constructor() {
     fun getIconDrawable(name: String?): Drawable? = name?.lowercase(Locale.US)?.let {
         iconsByName[it] ?: iconsByName[alternativeNames[it]]
     }
+
+    /**
+     * REA fork: the iOS 27 Dark design brings its own thin-stroke icons. The icon set is otherwise
+     * chosen by the theme *style*, which this colour theme shares with every other theme, so the
+     * override is keyed on the colour theme instead. Icons the user customised still win over it,
+     * and so do the style's icons for every other theme.
+     */
+    private fun themeIconIds(context: Context): Map<String, Int> =
+        if (KeyboardTheme.getCurrentColorThemeName(context) == KeyboardTheme.THEME_IOS27) iconsIos27
+        else emptyMap()
 
     /** gets drawable from resources, with mutate (might be necessary to avoid coloring issues...) */
     fun getNewDrawable(name: String?, context: Context): Drawable? = name?.lowercase(Locale.US)?.let { name ->
@@ -224,6 +234,21 @@ class KeyboardIconsSet private constructor() {
                 })
             }
         } }
+
+        /**
+         * REA fork: the thin-stroke icons of the iOS 27 Dark design, see [themeIconIds].
+         * Stroked like the design's own SVGs, white so HeliBoard's tint applies like it does to
+         * every other icon, and 24dp big like every other keyboard icon.
+         */
+        private val iconsIos27 by lazy { hashMapOf(
+            NAME_SHIFT_KEY to           R.drawable.ic_ios27_shift,
+            NAME_SHIFT_KEY_SHIFTED to   R.drawable.ic_ios27_shift_shifted,
+            NAME_SHIFT_KEY_LOCKED to    R.drawable.ic_ios27_shift_locked,
+            NAME_DELETE_KEY to          R.drawable.ic_ios27_delete,
+            NAME_ENTER_KEY to           R.drawable.ic_ios27_return,
+            NAME_LANGUAGE_SWITCH_KEY to R.drawable.ic_ios27_globe,
+            ToolbarKey.VOICE.name.lowercase(Locale.US) to R.drawable.ic_ios27_mic,
+        ) }
 
         private val keyboardIconsRounded by lazy { hashMapOf(
             NAME_SHIFT_KEY to                   R.drawable.sym_keyboard_shift_rounded,

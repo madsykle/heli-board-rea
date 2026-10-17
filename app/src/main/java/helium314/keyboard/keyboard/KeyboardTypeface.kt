@@ -6,6 +6,8 @@ import android.content.Context
 import android.graphics.Typeface
 import android.widget.TextView
 import androidx.compose.ui.text.font.FontFamily
+import androidx.core.content.res.ResourcesCompat
+import helium314.keyboard.latin.R
 import helium314.keyboard.latin.common.isEmoji
 import helium314.keyboard.latin.settings.Settings
 
@@ -24,8 +26,20 @@ object KeyboardTypeface {
     private fun loadCustomTypeface(context: Context): Typeface? {
         return runCatching {
             Typeface.createFromFile(Settings.getCustomFontFile(context))
-        }.getOrNull()
+        }.getOrNull() ?: runCatching { loadThemeTypeface(context) }.getOrNull()
     }
+
+    /**
+     * REA fork: the font a theme's design asks for, or null to use the platform typeface.
+     * iOS 27 Dark ships Inter (SIL OFL 1.1, see assets/licenses/Inter-OFL-1.1.txt) as the closest
+     * legal stand-in for the SF Pro of the design. Applies to every piece of keyboard text that
+     * already goes through this object: key labels, hints, spacebar text, suggestions, clipboard
+     * rows and the emoji search. The user's own font file still wins over it, see [loadCustomTypeface].
+     */
+    private fun loadThemeTypeface(context: Context): Typeface? =
+        if (KeyboardTheme.getCurrentColorThemeName(context) == KeyboardTheme.THEME_IOS27)
+            ResourcesCompat.getFont(context, R.font.inter_regular)
+        else null
 
     private fun loadCustomEmojiTypeface(context: Context): Typeface? {
         return runCatching {

@@ -285,7 +285,11 @@ public class KeyboardView extends View {
             return;
         }
 
-        mShowsHints = Settings.getValues().mShowsHints;
+        // Hint labels and icons (the small characters in the key corners) are drawn only if both the
+        // user's setting and the theme want them: a theme whose design leaves the corners empty turns
+        // them off, and this also keeps the key label centred for keys that are off centre when hints
+        // are shown (see onDrawKey).
+        mShowsHints = Settings.getValues().mShowsHints && mColors.showKeyHints;
         final float scale = Settings.getValues().mKeyboardHeightScale;
         mIconScaleFactor = scale < 0.8f ? scale + 0.2f : 1f;
         final Paint paint = mPaint;

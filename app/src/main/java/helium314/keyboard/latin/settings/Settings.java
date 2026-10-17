@@ -12,6 +12,7 @@ import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -509,7 +510,15 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
             image = getCustomBackgroundFile(context, night, false); // fall back to portrait image for historic reasons
         if (!image.isFile()) return null;
         try {
-            sCachedBackgroundImages[index] = new BitmapDrawable(context.getResources(), BitmapFactory.decodeFile(image.getAbsolutePath()));
+            // BitmapFactory returns null (instead of throwing) for data it cannot decode, and a
+            // BitmapDrawable around a null bitmap crashes when it is later rasterized to the panel.
+            // Returning null makes the keyboard fall back to its flat panel color instead.
+            final Bitmap bitmap = BitmapFactory.decodeFile(image.getAbsolutePath());
+            if (bitmap == null) {
+                Log.w(TAG, "background image could not be decoded: " + image);
+                return null;
+            }
+            sCachedBackgroundImages[index] = new BitmapDrawable(context.getResources(), bitmap);
             return sCachedBackgroundImages[index];
         } catch (Exception e) {
             return null;

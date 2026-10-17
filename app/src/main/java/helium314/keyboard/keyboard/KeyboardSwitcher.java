@@ -603,6 +603,9 @@ public final class KeyboardSwitcher {
      *  If the keyboard is currently showing, theme will be reloaded immediately. */
     public void setThemeNeedsReload() {
         mThemeNeedsReload = true;
+        // REA fork: a theme is more than its colours, iOS 27 Dark also brings its own font, so the
+        // resolved keyboard typeface has to be dropped together with the theme.
+        KeyboardTypeface.clearCache();
         if (mLatinIME == null || !mLatinIME.isInputViewShown())
             return; // will be reloaded right before showing IME
 

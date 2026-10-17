@@ -118,12 +118,14 @@ private fun setBackgroundImage(ctx: Context, uri: Uri, isNight: Boolean, isLands
     val imageFile = Settings.getCustomBackgroundFile(ctx, isNight, isLandscape)
     FileUtils.copyContentUriToNewFile(uri, ctx, imageFile)
     KeyboardSwitcher.getInstance().setThemeNeedsReload()
-    try {
-        BitmapFactory.decodeFile(imageFile.absolutePath)
-    } catch (_: Exception) {
+    // decodeFile returns null (rather than throwing) for data it cannot decode, which would
+    // otherwise be accepted here and turn into a flat panel on the keyboard. Keep the cache in
+    // sync in both cases, so a replaced image is never served from the old file's cache entry.
+    val decoded = BitmapFactory.decodeFile(imageFile.absolutePath)
+    Settings.clearCachedBackgroundImages()
+    if (decoded == null) {
         imageFile.delete()
         return false
     }
-    Settings.clearCachedBackgroundImages()
     return true
 }

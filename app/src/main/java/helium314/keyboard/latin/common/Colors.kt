@@ -9,6 +9,7 @@ import android.content.res.TypedArray
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.PorterDuff
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -44,6 +45,9 @@ interface Colors {
     val themeStyle: String
     /** used in parser to decide background of ZWNJ key */
     val hasKeyBorders: Boolean
+    /** whether key hint labels/icons (the small characters in the key corners) are drawn.
+     *  Designs that place nothing in the corners set this to false. */
+    val showKeyHints: Boolean get() = true
     val accentShiftedIcon: Boolean get() =
         Settings.getCurrentContext().prefs().getBoolean(Settings.PREF_ACCENT_SHIFTED_ICON, Defaults.PREF_ACCENT_SHIFTED_ICON)
 
@@ -352,13 +356,23 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
                     setColor(view.background, POPUP_KEYS_BACKGROUND)
                 else view.background.colorFilter = adjustedBackgroundFilter
             MAIN_BACKGROUND -> {
-                if (keyboardBackground != null) {
-                    if (!backgroundSetupDone) {
-                        keyboardBackground = keyboardBackground!!.toBitmap(view.width, view.height).toDrawable(view.context.resources)
+                // rasterizing needs a laid-out panel to know how big the bitmap has to be, so it is
+                // retried on the next call while the panel has no size yet (see panelBackgroundOrNull
+                // for this and the undecodable-image case). The source image is only replaced once it
+                // really became a panel-sized bitmap.
+                val image = keyboardBackground
+                val panel = when {
+                    image == null -> null
+                    backgroundSetupDone -> image
+                    else -> panelBackgroundOrNull(image, view)?.also {
+                        keyboardBackground = it
                         backgroundSetupDone = true
                     }
-                    view.background = keyboardBackground
+                }
+                if (panel != null) {
+                    view.background = panel
                 } else {
+                    // no background image (yet): the panel is the theme's flat panel color
                     view.background.colorFilter = backgroundFilter
                 }
             }
@@ -368,12 +382,17 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
 }
 
 /**
- * Per-surface alphas for a theme that fakes glass surfaces, i.e. that wants the keyboard material to
- * be genuinely translucent so whatever sits behind it shows through. An alpha of 255 (opaque) leaves
- * the surface rendering exactly as it does for every other theme.
+ * Per-key alphas for a theme that fakes glass keys, i.e. that wants the key material to be genuinely
+ * translucent so whatever sits behind it shows through. An alpha of 255 (opaque) leaves the keys
+ * rendering exactly as they do for every other theme.
  *
- * These are alphas, not colors: the surface color still comes from the theme, only its opacity is
+ * These are alphas, not colors: the key color still comes from the theme, only its opacity is
  * overridden. See [DefaultColors.setColor] for how the alpha is applied.
+ *
+ * Only keys are translucent. The keyboard panel and the suggestion strip sit directly on the IME
+ * window, whose background this app does not declare and therefore cannot predict, so they stay
+ * opaque: with a user background image the panel *is* that image, and without one it is the theme's
+ * flat panel color. A translucent panel would show an arbitrary platform color through it.
  */
 data class GlassAlphas(
     /** character keys */
@@ -384,8 +403,6 @@ data class GlassAlphas(
     val functionalKey: Int,
     /** functional keys while pressed */
     val functionalKeyPressed: Int,
-    /** the keyboard panel behind the keys, and the suggestion strip */
-    val panel: Int,
 )
 
 class DefaultColors (
@@ -402,8 +419,14 @@ class DefaultColors (
     private val spaceBarText: Int = keyHintText,
     private val gesture: Int = accent,
     private var keyboardBackground: Drawable? = null,
-    /** non-null only for themes that want translucent "glass" surfaces; others keep opaque rendering */
+    /** non-null only for themes that want translucent "glass" key surfaces; others keep opaque rendering */
     private val glassAlphas: GlassAlphas? = null,
+    /** the action key (enter / search / done …) color; null means use [accent] */
+    private val actionKeyBackground: Int? = null,
+    /** the color a key surface takes while pressed; null means one step brighter/darker than its resting color */
+    private val pressedKeyColor: Int? = null,
+    /** false for themes whose design has no hint labels/icons in the key corners */
+    override val showKeyHints: Boolean = true,
 ) : Colors {
     private val navBar: Int
     /** brightened or darkened variant of [background], to be used if exact background color would be
@@ -436,14 +459,11 @@ class DefaultColors (
     )
     private var backgroundSetupDone = false
 
-    /** translucent variants of the surface state lists, built only when [glassAlphas] is set */
+    /** translucent variants of the key state lists, built only when [glassAlphas] is set */
     private val glassKeyStateList: ColorStateList?
     private val glassFunctionalKeyStateList: ColorStateList?
     private val glassActionKeyStateList: ColorStateList?
     private val glassSpaceBarStateList: ColorStateList?
-    private val glassStripBackgroundList: ColorStateList?
-    /** panel (keyboard background) tint carrying [GlassAlphas.panel]; null for opaque themes */
-    private val glassBackgroundFilter: ColorFilter?
 
     init {
         if (isDarkColor(background)) {
@@ -480,6 +500,7 @@ class DefaultColors (
         }
 
         adjustedBackgroundFilter = colorFilter(adjustedBackground)
+        val actionKey = actionKeyBackground ?: accent
         // [pressed, normal] for each surface, so the opaque list and (for glass themes) the translucent
         // one are built from exactly the same colors and cannot drift apart.
         val keyColors: IntArray
@@ -489,20 +510,20 @@ class DefaultColors (
         if (hasKeyBorders) {
             backgroundStateList = pressedStateList(brightenOrDarken(background, true), background)
             keyColors = if (themeStyle == STYLE_HOLO) intArrayOf(keyBackground, keyBackground)
-                else intArrayOf(brightenOrDarken(keyBackground, true), keyBackground)
-            functionalKeyColors = intArrayOf(brightenOrDarken(functionalKey, true), functionalKey)
+                else intArrayOf(pressedVariant(keyBackground), keyBackground)
+            functionalKeyColors = intArrayOf(pressedVariant(functionalKey), functionalKey)
             actionKeyColors = if (themeStyle == STYLE_HOLO) functionalKeyColors
-                else intArrayOf(brightenOrDarken(accent, true), accent)
+                else intArrayOf(pressedVariant(actionKey), actionKey)
             spaceBarColors = if (themeStyle == STYLE_HOLO) intArrayOf(spaceBar, spaceBar)
-                else intArrayOf(brightenOrDarken(spaceBar, true), spaceBar)
+                else intArrayOf(pressedVariant(spaceBar), spaceBar)
         } else {
             // need to set color to background if key borders are disabled, or there will be ugly keys
             backgroundStateList = pressedStateList(brightenOrDarken(background, true), background)
             keyColors = intArrayOf(keyBackground, Color.TRANSPARENT)
             functionalKeyColors = keyColors
             actionKeyColors = if (themeStyle == STYLE_HOLO) functionalKeyColors
-                else intArrayOf(brightenOrDarken(accent, true), accent)
-            spaceBarColors = intArrayOf(brightenOrDarken(spaceBar, true), spaceBar)
+                else intArrayOf(pressedVariant(actionKey), actionKey)
+            spaceBarColors = intArrayOf(pressedVariant(spaceBar), spaceBar)
         }
         keyStateList = pressedStateList(keyColors[0], keyColors[1])
         functionalKeyStateList = pressedStateList(functionalKeyColors[0], functionalKeyColors[1])
@@ -512,11 +533,11 @@ class DefaultColors (
         actionKeyIconColorFilter = when {
             themeStyle == STYLE_HOLO -> keyTextFilter
             // the white icon may not have enough contrast, and can't be adjusted by the user
-            isBrightColor(accent) -> colorFilter(Color.DKGRAY)
+            isBrightColor(actionKey) -> colorFilter(Color.DKGRAY)
             else -> null
         }
 
-        // Translucent copies of the surface lists, for themes that fake glass. Built from the same
+        // Translucent copies of the key lists, for themes that fake glass. Built from the same
         // [pressed, normal] colors as the opaque lists, so the no-key-borders case (transparent
         // character keys) and all the pressed colors stay identical and only opacity differs.
         glassKeyStateList = glassAlphas?.let { glass ->
@@ -537,17 +558,15 @@ class DefaultColors (
         glassSpaceBarStateList = glassAlphas?.let { glass ->
             pressedStateList(spaceBarColors[0].scaledAlpha(glass.keyPressed), spaceBarColors[1].scaledAlpha(glass.key))
         }
-        glassStripBackgroundList = glassAlphas?.let { glass ->
-            pressedStateList(
-                pressedStripElementBackground.scaledAlpha(glass.panel),
-                stripBackground.scaledAlpha(glass.panel)
-            )
-        }
-        glassBackgroundFilter = glassAlphas?.let { colorFilter(ColorUtils.setAlphaComponent(background, it.panel)) }
     }
 
+    /** the pressed variant of a key surface color: the theme's own pressed color if it states one,
+     *  otherwise one step brighter/darker than the resting color (the classic HeliBoard look) */
+    private fun pressedVariant(color: Int) = pressedKeyColor ?: brightenOrDarken(color, true)
+
     override fun get(color: ColorType): Int = when (color) {
-        TOOL_BAR_KEY_ENABLED_BACKGROUND, EMOJI_CATEGORY_SELECTED, ACTION_KEY_BACKGROUND, CLIPBOARD_PIN -> accent
+        ACTION_KEY_BACKGROUND -> actionKeyBackground ?: accent
+        TOOL_BAR_KEY_ENABLED_BACKGROUND, EMOJI_CATEGORY_SELECTED, CLIPBOARD_PIN -> accent
         SHIFT_KEY_ICON -> if (accentShiftedIcon) accent else keyText
         AUTOFILL_BACKGROUND_CHIP -> if (themeStyle == STYLE_MATERIAL && !hasKeyBorders) background else adjustedBackground
         GESTURE_PREVIEW, POPUP_KEYS_BACKGROUND, MORE_SUGGESTIONS_BACKGROUND, KEY_PREVIEW_BACKGROUND -> adjustedBackground
@@ -561,7 +580,7 @@ class DefaultColors (
         SPACE_BAR_BACKGROUND -> spaceBar
         MORE_SUGGESTIONS_WORD_BACKGROUND, MAIN_BACKGROUND -> background
         KEY_BACKGROUND -> keyBackground
-        ACTION_KEY_POPUP_KEYS_BACKGROUND -> if (themeStyle == STYLE_HOLO) adjustedBackground else accent
+        ACTION_KEY_POPUP_KEYS_BACKGROUND -> if (themeStyle == STYLE_HOLO) adjustedBackground else (actionKeyBackground ?: accent)
         STRIP_BACKGROUND -> if (!hasKeyBorders && themeStyle == STYLE_MATERIAL) adjustedBackground else background
         NAVIGATION_BAR -> navBar
         SUGGESTION_AUTO_CORRECT, EMOJI_CATEGORY, TOOL_BAR_KEY, TOOL_BAR_EXPAND_KEY, ONE_HANDED_MODE_BUTTON -> suggestionText
@@ -581,7 +600,6 @@ class DefaultColors (
             FUNCTIONAL_KEY_BACKGROUND -> glassFunctionalKeyStateList
             ACTION_KEY_BACKGROUND -> glassActionKeyStateList
             SPACE_BAR_BACKGROUND -> glassSpaceBarStateList
-            STRIP_BACKGROUND -> glassStripBackgroundList
             else -> null
         }
         if (glassStateList != null) {
@@ -627,16 +645,24 @@ class DefaultColors (
             ONE_HANDED_MODE_BUTTON -> setColor(view.background, if (keyboardBackground == null) MAIN_BACKGROUND else STRIP_BACKGROUND)
             MORE_SUGGESTIONS_BACKGROUND -> view.background.colorFilter = backgroundFilter
             MAIN_BACKGROUND -> {
-                if (keyboardBackground != null) {
-                    if (!backgroundSetupDone) {
-                        keyboardBackground = keyboardBackground!!.toBitmap(view.width, view.height).toDrawable(view.context.resources)
+                // rasterizing needs a laid-out panel to know how big the bitmap has to be, so it is
+                // retried on the next call while the panel has no size yet (see panelBackgroundOrNull
+                // for this and the undecodable-image case). The source image is only replaced once it
+                // really became a panel-sized bitmap.
+                val image = keyboardBackground
+                val panel = when {
+                    image == null -> null
+                    backgroundSetupDone -> image
+                    else -> panelBackgroundOrNull(image, view)?.also {
+                        keyboardBackground = it
                         backgroundSetupDone = true
                     }
-                    view.background = keyboardBackground
+                }
+                if (panel != null) {
+                    view.background = panel
                 } else {
-                    // a glass theme carries its alpha on the panel tint; MODULATE multiplies the tint alpha
-                    // with the white view background, so the panel really does become translucent
-                    view.background.colorFilter = glassBackgroundFilter ?: backgroundFilter
+                    // no background image (yet): the panel is the theme's flat panel color
+                    view.background.colorFilter = backgroundFilter
                 }
             }
             else -> view.background.colorFilter = backgroundFilter
@@ -681,15 +707,21 @@ class AllColors(private val colorMap: EnumMap<ColorType, Int>, override val them
         when (color) {
             ONE_HANDED_MODE_BUTTON -> setColor(view.background, MAIN_BACKGROUND) // button has no separate background color
             MAIN_BACKGROUND -> {
-                if (keyboardBackground != null) {
-                    if (!backgroundSetupDone) {
-                        keyboardBackground = keyboardBackground!!.toBitmap(view.width, view.height).toDrawable(view.context.resources)
+                // rasterizing needs a laid-out panel to know how big the bitmap has to be, so it is
+                // retried on the next call while the panel has no size yet (see panelBackgroundOrNull
+                // for this and the undecodable-image case). The source image is only replaced once it
+                // really became a panel-sized bitmap.
+                val image = keyboardBackground
+                val panel = when {
+                    image == null -> null
+                    backgroundSetupDone -> image
+                    else -> panelBackgroundOrNull(image, view)?.also {
+                        keyboardBackground = it
                         backgroundSetupDone = true
                     }
-                    view.background = keyboardBackground
-                } else {
-                    setColor(view.background, color)
                 }
+                if (panel != null) view.background = panel
+                else setColor(view.background, color)
             }
             else -> setColor(view.background, color)
         }
@@ -714,13 +746,34 @@ private fun activatedStateList(activated: Int, normal: Int): ColorStateList {
 }
 
 /**
- * This color with its alpha scaled by [factor] (out of 255). Used to derive the translucent "glass"
- * variants of the surface colors from the opaque ones, so the only difference between a glass theme
- * and a normal one is opacity.
+ * Rasterize a user background image to the exact size of the keyboard panel [view], or return null
+ * if the panel can not use it. Null means "use the flat panel color for now" and happens when:
+ *  - the panel is not laid out yet. A panel-sized bitmap is all we need, so rasterizing before the
+ *    size is known would either crash (width and height must be > 0) or bake in a stale size that
+ *    the view then draws distorted. Callers keep the source image in this case and try again on
+ *    their next call, so the first keyboard show - which happens before the panel is measured -
+ *    does not throw the image away.
+ *  - the image file exists but does not decode. BitmapFactory returns null for unreadable or
+ *    unsupported data instead of throwing, and BitmapDrawable stores that null without complaint,
+ *    so it has to be caught here or it crashes inside [toBitmap]. Retrying such an image keeps
+ *    returning null, i.e. the panel simply stays flat.
  *
- * Scaling rather than overwriting matters: several surface colors already carry a deliberate alpha,
- * e.g. the suggestion strip's faint white press flash (`0x22ffffff`), and those must stay faint.
- * Fully transparent colors stay transparent.
+ * The resulting bitmap is stretched to the panel, ignoring its aspect ratio: there is no cropping.
+ */
+private fun panelBackgroundOrNull(image: Drawable, view: View): Drawable? {
+    if (view.width <= 0 || view.height <= 0) return null
+    if (image is BitmapDrawable && image.bitmap == null) return null
+    return image.toBitmap(view.width, view.height).toDrawable(view.context.resources)
+}
+
+/**
+ * This color with its alpha scaled by [factor] (out of 255). Used to derive the translucent "glass"
+ * variants of the key colors from the opaque ones, so the only difference between a glass theme and
+ * a normal one is opacity.
+ *
+ * Scaling rather than overwriting matters: a surface color may already carry a deliberate
+ * alpha, and that must keep its relative transparency. Fully transparent colors stay
+ * transparent.
  */
 private fun Int.scaledAlpha(factor: Int): Int =
     if (Color.alpha(this) == 0) this

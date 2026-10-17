@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    iOS 27 Dark theme only: the enter/return key, as a thin-stroke arrow.
+    The design labels this key with the word "return" (theme.tsx, `.return`), but the key is
+    drawn with an icon here as requested. The shape follows SF Symbols' `return`: a stroke
+    coming down on the right, turning left, ending in a left-pointing arrowhead.
+    Drawn directly in a 24x24 viewport, so the intrinsic size stays the usual 24dp, and the
+    1.6 stroke matches the stroke weight the design's other icons end up with here.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M19,5 V15 H6"
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M11,10 L6,15 L11,20"
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
