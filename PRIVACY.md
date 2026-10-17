@@ -45,6 +45,62 @@ Run it directly:
 
 CI runs this as a named step, so the check is visible in the log before the APK is built.
 
+### The guard has been shown to actually trip
+
+A guard that only ever passes proves nothing. A throwaway branch
+(`verify/privacy-guard-trips`, since deleted) added
+`android.permission.INTERNET` to the manifest and was built with
+`gh workflow run "Build APK" --ref verify/privacy-guard-trips`. The build failed at
+the guard step with:
+
+```
+> Privacy guard failed: the merged manifest declares forbidden permission(s):
+  android.permission.INTERNET. Remove them or update PrivacyGuardTask deliberately.
+Caused by: org.gradle.api.GradleException
+```
+
+To repeat it:
+
+```bash
+git checkout -b verify/privacy-guard-trips
+# add <uses-permission android:name="android.permission.INTERNET" /> to the manifest
+git commit -am "TEMP: positive control" && git push -u origin verify/privacy-guard-trips
+gh workflow run "Build APK" -R <you>/heli-board-rea --ref verify/privacy-guard-trips
+```
+
+## Verification of the built artifact
+
+Checked on `HeliBoard_4.2-rea.1-debugNoMinify.apk` from CI run 39006856748
+(commit `b2a06ed4`), read straight out of the APK rather than the source, using
+`apkanalyzer` (pure Java, so it runs on Termux) plus direct `resources.arsc` inspection:
+
+```
+package="com.rea.heliboard.debug"     versionName="4.2-rea.1"
+android:allowBackup="false"
+uses-permission: READ_USER_DICTIONARY, RECEIVE_BOOT_COMPLETED, VIBRATE, WRITE_USER_DICTIONARY
+providers: ClipboardContentProvider, androidx-startup      (no GestureFileProvider)
+signing: APK Signature Scheme v2, CN=Android Debug
+```
+
+The declared permission list above is the *complete* set the installed app can request.
+`com.rea.heliboard.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` is also present;
+that is AGP's own self-defined signature-level permission for Android 13+ receivers,
+not a capability granted by the system.
+
+Also confirmed present in `resources.arsc`, and the upstream value confirmed absent:
+
+- `com.rea.heliboard.debug.clipprovider` present, `helium314.keyboard.debug.clipprovider` gone
+- `HeliBoard (REA) debug` present, `HeliBoard debug` gone
+- the six `theme_name_rea_*` strings present
+
+Not yet verified:
+
+- The **release** variant is untested. It has its own proguard config and no signing
+  config, so `assembleRelease` currently produces an unsigned APK that cannot be
+  installed until item 3 below is done.
+- No decompiler pass has been run over `classes*.dex` to look for unexpected
+  network/analytics code (item 5 below).
+
 ## Changes vs upstream
 
 **Manifest** (`app/src/main/AndroidManifest.xml`)
@@ -109,8 +165,10 @@ These are known open items, listed honestly rather than implied as finished:
    work, add a keystore as a repo secret and a signing config.
 4. **Crash reports**: the app can still write crash reports to its own files dir and export
    them by hand. Local-only, but worth deleting if you never use it.
-5. **Obfuscation check**: verify with a decompiler that builds contain no unexpected
-   network/analytics strings.
+5. **Decompiler pass over the APK**: the manifest and resource table are verified, but no
+   pass has been made over `classes*.dex` to look for unexpected network/analytics code.
+   The manifest permission list already makes network use impossible without a permission
+   being present, but the dex check is the remaining belt-and-braces step.
 
 ## Building
 
