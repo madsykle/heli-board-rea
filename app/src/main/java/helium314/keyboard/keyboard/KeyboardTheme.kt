@@ -531,13 +531,16 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     // The design paints the panel and the keys as translucent material over the app
                     // behind it. Android IME windows can neither blur nor see through the app, so the
                     // glass is faked: the keys and the panel are genuinely translucent, and a user
-                    // background image (pre-blurred by the user) is what shows through them. The
-                    // alphas come from the palette above, so these scalars are 255 = "as written".
+                    // background image (pre-blurred by the user) is what shows through them.
+                    //
+                    // Selecting this path is what matters here; the alphas themselves are 255
+                    // because KEY_ALPHA has already been applied to the palette colours above, and
+                    // scaling them again would square the transparency.
                     glassAlphas = GlassAlphas(
-                        key = Ios27Palette.KEY_ALPHA,
-                        keyPressed = Ios27Palette.KEY_ALPHA,
-                        functionalKey = Ios27Palette.KEY_ALPHA,
-                        functionalKeyPressed = Ios27Palette.KEY_ALPHA
+                        key = 255,
+                        keyPressed = 255,
+                        functionalKey = 255,
+                        functionalKeyPressed = 255
                     ),
                     // The design's pressed key is a big step lighter and more opaque than the resting
                     // key, so the theme states the pressed colour itself instead of relying on the

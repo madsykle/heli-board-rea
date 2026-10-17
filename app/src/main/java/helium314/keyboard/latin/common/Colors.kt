@@ -406,10 +406,8 @@ class DynamicColors(context: Context, override val themeStyle: String, override 
  * These are alphas, not colors: the key color still comes from the theme, only its opacity is
  * overridden. See [DefaultColors.setColor] for how the alpha is applied.
  *
- * Only keys are translucent. The panel and the suggestion strip are the IME window's own surface:
- * they are painted from the theme's panel colour (see [DefaultColors.panelOverImage]) rather than
- * from these alphas, and this app does not declare the window background, so a translucent panel
- * shows whatever the platform puts behind the IME.
+ * These alphas reach the keys only. The panel and the suggestion strip are the IME window's own
+ * surface and carry their own colour instead (see [DefaultColors.panelOverImage]).
  */
 data class GlassAlphas(
     /** character keys */
