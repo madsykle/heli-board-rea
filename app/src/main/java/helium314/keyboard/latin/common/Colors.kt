@@ -643,10 +643,11 @@ class DefaultColors (
             // REA fork: a theme that lays a translucent panel over a user background image also owns
             // the navigation bar, which the system draws immediately below the panel. Left at the
             // flat panel colour the bar reads as a seam against the image, so it is painted with the
-            // colour of the panel's bottom row: the image's bottom row, composited under the panel
-            // colour exactly as the panel is. Every other theme keeps the flat colour.
-            val panelBottom = if (panelOverImage != null) keyboardBackground?.let(::bottomRowAverage) else null
-            navBar = if (panelBottom == null) background else ColorUtils.compositeColors(background, panelBottom)
+            // colour of the panel's *lowest pixel*: the image's bottom row under the panel colour and
+            // under the panel's own bottom edge shade, in that order. Every other theme keeps the
+            // flat colour.
+            val imageBottom = if (panelOverImage != null) keyboardBackground?.let(::bottomRowAverage) else null
+            navBar = imageBottom?.let { panelBottomColour(it, background, shading) } ?: background
         }
 
         adjustedBackgroundFilter = colorFilter(adjustedBackground)
@@ -944,6 +945,17 @@ private fun bottomRowAverage(image: Drawable): Int? {
     }
     if (alpha == 0L) return null
     return Color.argb(255, (red / alpha).toInt(), (green / alpha).toInt(), (blue / alpha).toInt())
+}
+
+/**
+ * REA fork: the colour of the panel's lowest pixel: [imageBottom] under [panelColour], then under the
+ * panel's own bottom edge shade. The panel is drawn as image, panel colour, shading, so this is what
+ * the seam the navigation bar continues from actually looks like; matching it is what removes the seam.
+ */
+private fun panelBottomColour(imageBottom: Int, panelColour: Int, shading: SurfaceShading?): Int {
+    val shaded = ColorUtils.compositeColors(panelColour, imageBottom)
+    val edge = shading?.panelEdgeShade ?: return shaded
+    return if (edge == 0) shaded else ColorUtils.compositeColors(edge, shaded)
 }
 
 /**

@@ -365,11 +365,12 @@ translucent panes over it (see *Glass* above).
 **The navigation bar follows the panel's bottom edge.** The system draws the navigation bar in the
 strip just below the panel, painted with the colour the IME window declares. Left at the flat panel
 colour it reads as a seam against the image, so when an image is set the theme paints it with the
-average colour of the image's bottom row, composited under the panel colour exactly as the panel
-itself is (`bottomRowAverage` in `latin/common/Colors.kt`, fed into `navBar`). Without an image the
-bar keeps the flat panel colour, and every other theme is untouched. This is a colour match, not a
-true extension of the image under the bar: an IME window ends at the navigation bar and cannot draw
-behind it.
+colour of the panel's lowest pixel: the average colour of the image's bottom row, under the panel
+colour, then under the panel's bottom edge shade, in that order (`bottomRowAverage` and
+`panelBottomColour` in `latin/common/Colors.kt`, fed into `navBar`). Without an image the bar keeps
+the flat panel colour, and every other theme is untouched. This is a colour match, not a true
+extension of the image under the bar: an IME window ends at the navigation bar and cannot draw behind
+it.
 
 **Where the file goes.** The picker copies whatever you choose into *device-protected* app
 storage, under these four names:
