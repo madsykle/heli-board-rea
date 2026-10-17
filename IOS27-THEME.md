@@ -362,20 +362,30 @@ HeliBoard has its own *Appearance → Keyboard background image* setting, and th
 it as its material: with an image set the panel **is** that image, and the keys are
 translucent panes over it (see *Glass* above).
 
-**The panel runs under the navigation bar.** The system does not inset the input method window for the
-navigation bar at the bottom — it lays the window out over it (the nav bar inset is fitted on the left,
-top and right only) — but SystemUI draws an *opaque, translucent* navigation bar window on top of the
-window's bottom strip, which would cut the panel off. With a background image set the theme therefore
-asks for a **transparent** navigation bar and turns contrast enforcement off
-(`panelUnderNavigationBar` in `latin/common/Colors.kt`, used by `setNavigationBarColor` in
-`latin/LatinIME.java`), so what shows under the gesture pill is the panel's own image. The colour the
-bar would otherwise have still decides whether the pill is drawn light or dark. Without an image the
-bar keeps the flat panel colour, every other theme is untouched, and below Android 10 — where contrast
-enforcement cannot be turned off — the coloured bar is kept as the fallback.
+**The panel runs under the navigation bar.** Two things stand between the panel and the bottom of the
+screen, and the theme deals with both.
 
-Nothing has to be re-laid-out for this: the nav bar inset is zero at the bottom on the devices checked,
-so the keys already sit above the bar and their touch targets do not move; only the panel, which
-already reached the bottom of the screen, stops being covered.
+The first is that SystemUI draws the navigation bar as an *opaque, translucent* window over the bottom
+strip of the IME window's surface. With a background image set the theme therefore asks for a
+**transparent** navigation bar with contrast enforcement off (`panelUnderNavigationBar` in
+`latin/common/Colors.kt`, used by `setNavigationBarColor` in `latin/LatinIME.java`), so what shows under
+the gesture pill is the panel's own image. The colour the bar would otherwise have decides the pill's
+light or dark. Below Android 10, where contrast enforcement cannot be turned off, the coloured bar is
+kept as the fallback.
+
+The second is that the IME window's *content*, and with it the panel view, still stops one navigation
+bar above the bottom of the screen even though the window's surface and frame reach it. A background is
+only ever painted inside its own view, so the panel cannot reach the strip on its own. When the panel is
+painted, `DefaultColors.setBackground` therefore lays the panel out over the whole of it — the panel's
+own height plus the strip below it, found by `windowStripHeight` — and paints the taller panel's last
+pixels into the window's background, the only thing that does cover the strip. Both ends draw the same
+panel at the same size (`PanelSliceDrawable`), one clipped to its top and the other to its bottom pixels,
+so they are one continuous panel rather than two that merely meet, and the panel's height is read as it
+is drawn, so the emoji and clipboard panels are cut correctly too. It needs no re-layout at all: the keys
+stay exactly where they were, the window keeps reporting the same visible height to the app it is over,
+and a theme without a background image does nothing. The image is laid out over those few extra pixels
+— the panel is very slightly taller than it used to be, and the image fills it — so its bottom edge is
+at the bottom of the screen rather than one bar above it.
 
 **Where the file goes.** The picker copies whatever you choose into *device-protected* app
 storage, under these four names:

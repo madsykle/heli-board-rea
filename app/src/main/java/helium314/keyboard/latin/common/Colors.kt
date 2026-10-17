@@ -534,6 +534,68 @@ private class TopEdgeHighlightDrawable(
     override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }
 
+/**
+ * REA fork: shows one end of a panel that is laid out over the height of the keyboard panel [panelView]
+ * plus the [stripHeight] pixels of window below it that the navigation bar is drawn over. The window's
+ * background wants the panel's last [stripHeight] pixels ([strip]), the panel's own view the rest; both
+ * lay the same panel out at the same size, so the two ends are one continuous panel rather than two that
+ * merely meet. The panel's height is read when it is drawn, so a panel of a different height (the emoji
+ * or clipboard panels, or a changed keyboard height) is cut correctly without being told.
+ *
+ * The panel's view itself is only ever painted inside its own bounds, which is why the strip below it
+ * needs the window's background: see [DefaultColors.setBackground].
+ */
+private class PanelSliceDrawable(
+    private val panel: Drawable,
+    private val panelView: View,
+    private val stripHeight: Int,
+    private val strip: Boolean,
+) : Drawable() {
+    override fun draw(canvas: Canvas) {
+        val area = bounds
+        val tall = panelView.height + stripHeight
+        val top = if (strip) area.bottom - tall else area.top
+        val clipTop = if (strip) area.bottom - stripHeight else area.top
+        val save = canvas.save()
+        canvas.clipRect(area.left, clipTop, area.right, area.bottom)
+        panel.setBounds(area.left, top, area.right, top + tall)
+        panel.draw(canvas)
+        canvas.restoreToCount(save)
+    }
+
+    override fun setAlpha(alpha: Int) {
+        panel.alpha = alpha
+    }
+
+    override fun setColorFilter(colorFilter: ColorFilter?) {
+        panel.colorFilter = colorFilter
+    }
+
+    override fun setVisible(visible: Boolean, restart: Boolean): Boolean {
+        super.setVisible(visible, restart)
+        return panel.setVisible(visible, restart)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+}
+
+/**
+ * REA fork: how much of the window lies below the panel [view], i.e. the strip the navigation bar is
+ * drawn over. Zero on a window that is not deeper than the panel, which is also what it reports before
+ * the window is laid out, and zero for a panel that does not span the window -- the floating keyboard
+ * is a box inside a full-screen window, and so is a keyboard that the width setting has narrowed, and
+ * in both cases the panel must stay the box and the strip must stay the app behind it.
+ */
+private fun windowStripHeight(view: View): Int {
+    val window = view.rootView
+    if (view.height <= 0 || view.width < window.width)
+        return 0
+    val location = IntArray(2)
+    view.getLocationInWindow(location)
+    return (window.height - location[1] - view.height).coerceAtLeast(0)
+}
+
 class DefaultColors (
     override val themeStyle: String,
     override val hasKeyBorders: Boolean,
@@ -830,7 +892,17 @@ class DefaultColors (
                     }
                 }
                 if (panel != null) {
-                    view.background = panel
+                    // REA fork: this theme's panel is the window's own surface, and that surface is
+                    // taller than the panel view by the strip the navigation bar is drawn over. A
+                    // background is only painted inside its own view, so the panel is laid out over its
+                    // height plus that strip and its last pixels are painted into the window's
+                    // background, which is the only thing covering the strip (see PanelSliceDrawable).
+                    // Nothing about the layout changes: the keys keep their size and position, the panel
+                    // simply no longer stops one bar short of the bottom of the screen.
+                    val strip = windowStripHeight(view)
+                    view.background = PanelSliceDrawable(panel, view, strip, strip = false)
+                    view.rootView.background = if (strip > 0)
+                        PanelSliceDrawable(panel, view, strip, strip = true) else null
                 } else if (panelOverImage != null && image == null) {
                     // REA fork: no background image, yet this theme's panel is translucent material of
                     // its own. Painting it as a layer instead of tinting the view's white background
