@@ -17,10 +17,10 @@ platform will not do, so a later tweak does not have to rediscover them.
 | --- | --- |
 | Palette | `keyboard/KeyboardTheme.kt` — `Ios27Palette` (one object, read by `THEME_IOS27`) |
 | Panel + key geometry | `res/drawable/keyboard_background_lxx_base_border.xml`, `btn_keyboard_key_*_lxx_base_border.xml` |
-| Suggestion strip | `res/drawable/keyboard_suggest_strip_lxx_base_border.xml`, `res/drawable/suggestions_strip_divider.xml` |
+| Suggestion strip | `res/drawable/keyboard_suggest_strip_lxx_base_border.xml`, `res/drawable/suggestions_strip_divider.xml`, `res/drawable/suggestions_strip_divider_tinted.xml` |
 | Borderless spacebar | `res/drawable/btn_keyboard_spacebar_base.xml` **and** `res/drawable-v26/btn_keyboard_spacebar_base.xml` — the `-v26` copy wins on every modern device, so keep the two in step |
-| Popup keys / panel | `res/drawable/btn_keyboard_key_popup_lxx_base.xml`, `keyboard_popup_panel_background_lxx_base.xml` |
-| Theme-local hooks | `latin/common/Colors.kt` (`DefaultColors`), `keyboard/KeyboardView.java` (hint gate, key shading) |
+| Popup keys / panel / preview | `res/drawable/btn_keyboard_key_popup_lxx_base.xml`, `keyboard_popup_panel_background_lxx_base.xml`, `keyboard/internal/KeyPreviewChoreographer.java`, `KeyPreviewDrawParams.java` |
+| Theme-local hooks | `latin/common/Colors.kt` (`DefaultColors`), `keyboard/KeyboardView.java` (hint gate, key shading), `latin/suggestions/SuggestionStripView.kt` + `SuggestionStripLayoutHelper.java` (divider, hint), `keyboard/internal/keyboard_parser/floris/KeyLabel.kt` (symbols label) |
 | Bundled font | `res/font/inter_regular.ttf`, `KeyboardTypeface.kt`, `assets/licenses/Inter-OFL-1.1.txt` |
 | Icon set | `res/drawable/ic_ios27_*.xml`, `keyboard/internal/KeyboardIconsSet.kt` |
 | It ships as the default | `latin/settings/Defaults.kt` |
@@ -40,14 +40,15 @@ are written the way the design writes them — as ARGB, with the opacity inside 
 
 | Palette entry | Value | Paints |
 | --- | --- | --- |
-| `PANEL` | `#CC202127` | the panel — and the suggestion strip, which is part of the same slab |
-| `KEY` | `#665B5F68` | character keys and the spacebar |
+| `PANEL` | `#CC202127` | the panel — and the suggestion strip, which is part of the same slab; also the long-press popup panel |
+| `KEY` | `#80707072` | character keys and the spacebar |
 | `PRESSED` | `#997D828D` | any key surface while it is held down |
-| `MODIFIER` | `#992B2D35` | functional keys: shift, delete, globe, mode keys, `?123`, comma, period |
-| `ACTION` | `#FF626570` | the action key: enter, search, done, send |
+| `MODIFIER` | `#66505052` | functional keys: shift, delete, globe, mode keys, `123`, comma, period |
+| `ACTION` | = `MODIFIER` | the action key: enter, search, done, send |
+| `POPUP_KEY` | `#99A0A0A6` | the keys inside a long-press popup, and the key preview bubble |
 | `CHARACTER` | `#FFF5F5F7` | key letters and suggestion text |
 | `SECONDARY_ICON` | `#B8C0C9` | corner hints, toolbar icons, spacebar label |
-| `DIVIDER` | `#30FFFFFF` | the rules between the suggestion areas |
+| `DIVIDER` | `#18FFFFFF` | the rules between the suggestion areas |
 
 Three scalars sit next to the colours and scale their alphas; 255 means "use them exactly as
 written":
@@ -58,8 +59,13 @@ written":
 | `KEY_ALPHA` | 255 | how opaque every key surface is |
 | `SCRIM_INTENSITY` | 0 | an extra dim layer between the background image and the panel; 0 = off |
 
-`PANEL_EDGE_SHADE`, `KEY_EDGE_SHADE`, `KEY_TOP_HIGHLIGHT`, `KEY_RADIUS_DP` (9) and
+`PANEL_EDGE_SHADE`, `KEY_EDGE_SHADE`, `KEY_TOP_HIGHLIGHT`, `KEY_RADIUS_DP` (7) and
 `PANEL_RADIUS_DP` (28) describe the soft shading and the corner radii, see *Soft edges*.
+
+The decisions the theme makes that are not colours are named in the same object, so the theme is
+still tunable in one place: `DIVIDER_HEIGHT_RATIO` (0.4), `SYMBOL_LABEL` (`"123"`),
+`SHOW_MORE_SUGGESTIONS_HINT` (false) and `PREVIEW_BUBBLE_ABOVE_KEY` (true). Each is described with
+its hook in *Theme-local overrides*.
 
 The palette is applied through the theme's colour slots, so it reaches everything at once, without
 each surface needing its own hook: the panel, the keys, the spacebar, the suggestion strip and its
@@ -87,24 +93,36 @@ does not pass them behaves exactly as upstream:
   opaque action key lightens it instead of fading it.
 - `actionKeyBackground` — the action key (enter / search / done / send …) is painted with
   the theme *accent* upstream, which here would be the gold of the swipe trail. The design
-  wants a neutral key, so the action key gets the palette's `ACTION` (`#FF626570`,
-  deliberately lighter than the character keys so it still reads as the primary button). This
-  is a deliberate deviation from the mock, which paints `.return` with the same functional
-  ramp as the other bottom-row keys; the brief asked for a lighter neutral key. The gold
-  accent now reaches only the swipe trail and the selection highlights (selected emoji
-  category, pinned clipboard entries, enabled toolbar key). This also drives the action key's
-  *pressed* colour and its icon contrast decision.
+  wants a neutral key, so the action key gets the palette's `ACTION`, which is the functional
+  keys' own colour (`MODIFIER`, `#66505052`): the design gives the bottom row one material and
+  does not single the action key out. This also drives the action key's *pressed* colour and
+  its icon contrast decision.
 - `dividerColor` — the suggestion rules take their drawing from the strip *style*, which every
   theme shares, so a theme that wants its own colour states it here. The rule is then drawn from
   a colourless copy of the divider (`suggestions_strip_divider_tinted.xml`, white) and tinted
   with the stated colour: a tint composites with the source alpha, so white is what makes the
   rendered colour exactly the stated one. `null` — every other theme — keeps the style's own
   drawable untouched.
-- `popupKeysBackground`, `popupPanelBackground` — long-press popups and the more-suggestions
-  popup are painted from a *brightened variant of the panel* upstream, which would have made them
-  out-of-palette panels rather than keys. This theme states the palette's `KEY` and `PANEL`, so a
-  popup is the same material as the keyboard it opened from, including the pressed colour (and
-  the glass alphas). `null` for both leaves upstream behaviour alone.
+- `dividerHeightRatio` — how tall those rules are, as a fraction of `config_suggestions_strip_height`
+  (`0.4` here, i.e. 16dp in a 40dp strip). The view keeps its height and centres the shorter rule in
+  it, and the ratio is taken from the strip height rather than written as a size, so the rule follows
+  a changed strip height (landscape, or a different style) by itself. `null` keeps the drawable's own
+  height (24dp).
+- `popupKeysBackground`, `popupPreviewBackground`, `popupPanelBackground` — long-press popups and
+  the more-suggestions popup are painted from a *brightened variant of the panel* upstream, which
+  would have made them out-of-palette panels rather than keys. This theme states `POPUP_KEY` (a step
+  lighter than the character keys), the same for the key preview, and the `PANEL` colour for the popup
+  panel, so a popup is the same material as the keyboard it opened from, including the pressed colour
+  (and the glass alphas). `null` for all three leaves upstream behaviour alone.
+- `symbolKeyLabel` — the label of the key that opens the symbols layout. The framework's own (and
+  every locale file's) reads `?123`; the design says `123`, so the theme states `"123"`. Null keeps
+  the locale's label, which localised keyboards still need (`KeyLabel`'s two call sites, the symbol
+  key and the shift-and-symbols key).
+- `showMoreSuggestionsHint` — whether the suggestion strip draws the `…` under the middle suggestion
+  that says more suggestions are available. The design has no such glyph, so the theme sets it false;
+  `SuggestionStripLayoutHelper` then leaves the compound drawable off entirely. `true` = upstream.
+- `previewBubbleAboveKey` — how the key preview relates to the long-press panel, see *Long-press
+  popups and the key preview* below.
 - `panelOverImage`, `panelScrim` — see *Glass* below: the panel colour drawn over the user's
   background image, instead of the upstream behaviour where the image *is* the panel.
 - `showKeyHints` — whether the small hint labels/icons in the key corners are drawn at all.
@@ -114,6 +132,38 @@ does not pass them behaves exactly as upstream:
   corner rather than centred, key labels come out centred — which is what the design shows.
   This is a `Colors` property rather than a settings key on purpose: it is a property of the
   design, not of the user, and it must not leak into other themes or into the settings UI.
+
+## Long-press popups and the key preview
+
+Holding a key shows two things: the **key preview** (the magnified label, shown as soon as the key is
+pressed) and, if the key has popup keys, the **long-press panel** with those keys in it.
+
+Upstream ties the two together. The preview is drawn from a shape whose bottom padding is 60dp, its
+bounds always reach the bottom of the key, and the panel is placed half that padding *above* the key
+so that the visible part of the preview reads as a **neck** joining the panel to the key. That neck is
+part of the Material shape, not of this design.
+
+This theme separates them, through three small hooks:
+
+- `previewBubbleAboveKey` (true here) tells `KeyPreviewChoreographer` that the preview is a **bubble**:
+  it asks `Colors.setKeyPreviewBackground(view, tail)` for a preview cut off at the key's top edge
+  (the tail is `keyHeight - keyPreviewOffset`, i.e. exactly the part of the preview's bounds that lies
+  over the key), and it forgets the previous preview's geometry so the panel is not aligned to it.
+  With no tail to align to, the panel is placed where `onKeyPressed` already put it: on the key
+  itself, one vertical gap above it. The bubble is then covered by the panel while it is up, and on a
+  plain tap the bubble is what the user sees — a rounded rectangle above the key.
+- `popupPreviewBackground` paints that bubble: a flat `POPUP_KEY` rounded rectangle at the keys'
+  `KEY_RADIUS_DP`. It is a `TailClippedSurface`, so it keeps the style drawable's size and padding —
+  the measurement and the text position are untouched, on the first press and on every reuse — and
+  only stops painting at the key's top edge.
+- `popupPanelBackground` paints the panel itself: a flat `PANEL`-coloured rounded rectangle at
+  `KEY_RADIUS_DP` instead of the style's panel, whose *drop shadow* (five dark layers) would read as a
+  fill darker than the panel. The style's padding is kept, so the panel does not move or resize. The
+  keys of an action key popup have no panel of their own upstream, and are left without one.
+
+The popup *keys* keep the same treatment they had: `popupKeysBackground` gives them `POPUP_KEY`, and
+`btn_keyboard_key_popup_lxx_base.xml` gives them the keys' radius, so a popup looks like the keyboard
+it opened from.
 
 ## Soft edges (edge shading, top highlight)
 
@@ -155,7 +205,7 @@ settings are the right place for it because they are per-layout-type and per-ori
 
 | Design intent | Where it lives | Status |
 | --- | --- | --- |
-| key corner radius 9dp | `btn_keyboard_key_*_lxx_base_border.xml`, `btn_keyboard_key_popup_lxx_base.xml`, `btn_keyboard_key_action_normal_lxx_base.xml` | already 9dp everywhere a keycap is drawn, including popup keys |
+| key corner radius 7dp | `btn_keyboard_key_*_lxx_base_border.xml`, `btn_keyboard_key_popup_lxx_base.xml`, `btn_keyboard_spacebar_base.xml` | drawn at 7dp everywhere a keycap is drawn, including popup keys; `KEY_RADIUS_DP` must be kept in step, because the shading's hairline and the popup panel are cut to it |
 | panel / strip top radius 28dp | `keyboard_background_lxx_base_border.xml`, `keyboard_suggest_strip_lxx_base_border.xml` | already 28dp |
 | key height | *Appearance → Keyboard height scale* (`prefs_keyboard_height_scale`) | user setting, per layout type and orientation |
 | row / key gaps | *Appearance → Key gap scale* (`prefs_key_gap_scale`) | user setting; scales `horizontalGap`/`verticalGap` of the style |
@@ -166,9 +216,10 @@ settings are the right place for it because they are per-layout-type and per-ori
 | suggestion areas | `config_center_suggestion_percentile` (36%) + `config_suggestions_count_in_strip` (3) + subtle dividers | three areas, as the design's `repeat(3, 1fr)`; the design is the thirds case of a percentile that also has to serve one- and two-word strips |
 
 The one geometry-adjacent thing that *is* theme-local is the divider: the rules between the three
-suggestion areas are now the palette's `DIVIDER` (`#30FFFFFF`) instead of the previous fixed
-`#18FFFFFF`, via the `dividerColor` hook described above. The divider drawable's size (1dp × 24dp)
-is unchanged, so the strip still measures and lays out exactly as before.
+suggestion areas are drawn from the palette's `DIVIDER` (`#18FFFFFF`, the design's own
+`#ffffff18`, fainter than the `#30FFFFFF` of the first pass) and are `DIVIDER_HEIGHT_RATIO` (0.4)
+of the strip tall, i.e. 16dp in the 40dp strip, instead of the drawable's own 24dp: the strip still
+measures and lays out exactly as before, the rule is simply shorter and fainter.
 
 Two things the design shows that HeliBoard's layout does not have were left alone deliberately:
 the mock's bottom row is five keys (utility, mode, globe, space, return), while HeliBoard's is a
@@ -313,10 +364,11 @@ Alphas used — these are the palette's own, and `KEY_ALPHA` scales them:
 
 | Surface | Alpha (`KEY_ALPHA = 255`) |
 | --- | --- |
-| character keys / spacebar | `0x66` (`#665B5F68`) |
+| character keys / spacebar | `0x80` (`#80707072`) |
 | character keys, pressed | `0x99` (`#997D828D`) |
-| functional keys | `0x99` (`#992B2D35`) |
-| action key | `0xFF` (`#FF626570`, opaque by design) |
+| functional keys | `0x66` (`#66505052`) |
+| action key | `0x66` (`#66505052`, the functional colour: the bottom row is one material) |
+| popup keys / key preview | `0x99` (`#99A0A0A6`) |
 | panel | `0xA0` (`#CC202127` scaled by `PANEL_ALPHA` 200) |
 
 ### What you get, and what you give up

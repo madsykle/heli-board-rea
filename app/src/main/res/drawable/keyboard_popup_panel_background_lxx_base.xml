@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     SPDX-License-Identifier: GPL-3.0-only
-    REA fork: radius scaled to the iOS 27 key grid (keys are 9dp, panel 10dp).
+    REA fork: corners scaled to the key grid the iOS 27 theme was drawn for. That theme now paints
+    its own flat popup panel over this drawable (see Colors.setBackground), so what it takes from
+    here is only the padding; the radii are what the other border styles draw.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Shadow -->

@@ -13,6 +13,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
+import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
@@ -73,6 +74,19 @@ interface Colors {
      *  its background image run to the bottom of the screen and show under the gesture pill instead
      *  of stopping at the bar. False colours the bar with [ColorType.NAVIGATION_BAR], as upstream. */
     val panelUnderNavigationBar: Boolean get() = false
+    /** REA fork: the label of the key that opens the symbols layout, or null to keep the one the
+     *  framework or the locale's own key texts provide (English reads "?123"). */
+    val symbolKeyLabel: String? get() = null
+    /** REA fork: false hides the "more suggestions" hint, the "…" the strip draws under a suggestion
+     *  when more words are available. */
+    val showMoreSuggestionsHint: Boolean get() = true
+    /** REA fork: how tall the suggestion dividers are, as a fraction of the strip height; null keeps
+     *  the height the divider drawable brings itself. */
+    val suggestionsDividerHeightRatio: Float? get() = null
+    /** REA fork: true draws the key preview as a bubble that stops at the top edge of the key and
+     *  lets the long-press panel sit on the key itself, so nothing connects the two. False keeps
+     *  upstream's preview: a tail that reaches down to the key, with the panel aligned to it. */
+    val previewBubbleAboveKey: Boolean get() = false
     val accentShiftedIcon: Boolean get() =
         Settings.getCurrentContext().prefs().getBoolean(Settings.PREF_ACCENT_SHIFTED_ICON, Defaults.PREF_ACCENT_SHIFTED_ICON)
 
@@ -91,6 +105,13 @@ interface Colors {
 
     /** set a background to the [view], may replace or adjust existing background */
     fun setBackground(view: View, color: ColorType)
+
+    /** REA fork: draw the key preview as the theme's own bubble, cut off [tail] pixels above its
+     *  bottom edge so that it stops at the top edge of the key it previews. The default is the
+     *  style's own preview, drawn whole, which is what every other theme gets. */
+    fun setKeyPreviewBackground(view: View, tail: Int) {
+        setBackground(view, ColorType.KEY_PREVIEW_BACKGROUND)
+    }
 
     /** returns a colored drawable selected from [attr], which must contain using R.styleable.KeyboardView_* */
     fun selectAndColorDrawable(attr: TypedArray, color: ColorType): Drawable {
@@ -626,14 +647,28 @@ class DefaultColors (
     private val panelScrim: Int = 0,
     /** REA fork: the colour of the rules between the suggestion areas (null = keep the drawable's) */
     private val dividerColor: Int? = null,
+    /** REA fork: height of those rules as a fraction of the strip height (null = keep the drawable's) */
+    private val dividerHeightRatio: Float? = null,
+    /** REA fork: the label of the symbols key (null = the framework's own, "?123") */
+    private val symbolLabel: String? = null,
+    /** REA fork: false hides the "more suggestions" hint under a suggestion */
+    private val moreSuggestionsHint: Boolean = true,
     /** REA fork: soft shading drawn untinted over the panel and over every keycap (null = none) */
     private val shading: SurfaceShading? = null,
     /** REA fork: colour of the keys inside a long-press popup (null = upstream's brightened panel) */
     private val popupKeysBackground: Int? = null,
+    /** REA fork: colour of the key preview bubble (null = upstream's brightened panel) */
+    private val popupPreviewBackground: Int? = null,
     /** REA fork: colour of the popup panel itself (null = upstream's brightened panel) */
     private val popupPanelBackground: Int? = null,
+    /** REA fork: true draws the preview as a bubble that stops at the key's top edge (see [Colors.previewBubbleAboveKey]) */
+    private val previewAboveKey: Boolean = false,
 ) : Colors {
     override val suggestionsDivider: Int? get() = dividerColor
+    override val suggestionsDividerHeightRatio: Float? get() = dividerHeightRatio
+    override val symbolKeyLabel: String? get() = symbolLabel
+    override val showMoreSuggestionsHint: Boolean get() = moreSuggestionsHint
+    override val previewBubbleAboveKey: Boolean get() = previewAboveKey
     override val surfaceShading: SurfaceShading? get() = shading
     /** REA fork: only a panel that actually carries a background image wants to reach under the bar */
     override val panelUnderNavigationBar: Boolean get() = panelOverImage != null && keyboardBackground != null
@@ -871,9 +906,19 @@ class DefaultColors (
         if (view.background == null)
             view.setBackgroundColor(Color.WHITE) // set white to make the color filters work
         when (color) {
-            KEY_PREVIEW_BACKGROUND -> view.background.colorFilter = adjustedBackgroundFilter
-            POPUP_KEYS_BACKGROUND -> view.background.colorFilter =
-                if (popupPanelBackground != null) colorFilter(popupPanelBackground) else adjustedBackgroundFilter
+            KEY_PREVIEW_BACKGROUND -> {
+                val bubble = popupPreviewBackground
+                if (bubble == null) view.background.colorFilter = adjustedBackgroundFilter
+                else keepingPadding(view) { view.background = keyPreviewBubble(view, bubble, view.paddingBottom) }
+            }
+            POPUP_KEYS_BACKGROUND -> {
+                val panel = popupPanelBackground
+                val style = view.background
+                // the style gives the action-key popup no panel of its own; keep it without one
+                if (panel == null || style == null || isTransparent(style))
+                    style?.colorFilter = if (panel != null) colorFilter(panel) else adjustedBackgroundFilter
+                else keepingPadding(view) { view.background = roundedSurface(view, panel) }
+            }
             FUNCTIONAL_KEY_BACKGROUND, KEY_BACKGROUND, MORE_SUGGESTIONS_WORD_BACKGROUND, SPACE_BAR_BACKGROUND, STRIP_BACKGROUND, CLIPBOARD_SUGGESTION_BACKGROUND -> setColor(view.background, color)
             ONE_HANDED_MODE_BUTTON -> setColor(view.background, if (keyboardBackground == null) MAIN_BACKGROUND else STRIP_BACKGROUND)
             MORE_SUGGESTIONS_BACKGROUND -> view.background.colorFilter = backgroundFilter
@@ -916,6 +961,60 @@ class DefaultColors (
             else -> view.background.colorFilter = backgroundFilter
         }
     }
+
+    override fun setKeyPreviewBackground(view: View, tail: Int) {
+        val bubble = popupPreviewBackground
+        if (bubble == null) setBackground(view, ColorType.KEY_PREVIEW_BACKGROUND)
+        else keepingPadding(view) { view.background = keyPreviewBubble(view, bubble, tail) }
+    }
+
+    /** REA fork: the key preview of a theme that states its own bubble colour: a plain rounded bubble
+     *  that sits above the key it previews.
+     *
+     *  The style's own drawable is a rounded rectangle whose bottom padding (60dp in the Material
+     *  style) upstream leaves filled and lets the long-press panel be placed against inside it, so
+     *  the key preview reads as a neck between the panel and the key. The theme's bubble keeps the
+     *  style's size and padding - they are what positions the text and the bubble - but paints at
+     *  most down to the key's top edge ([tail] is the part of the preview's bounds below it), so no
+     *  neck hangs between the panel and the key.
+     */
+    private fun keyPreviewBubble(view: View, fill: Int, tail: Int): Drawable {
+        val style = view.background
+        val density = view.resources.displayMetrics.density
+        val intrinsicWidth = style?.intrinsicWidth?.takeIf { it > 0 } ?: (35 * density).toInt()
+        val intrinsicHeight = style?.intrinsicHeight?.takeIf { it > 0 } ?: (5 * density).toInt()
+        val stylePadding = Rect()
+        style?.getPadding(stylePadding)
+        return TailClippedSurface(
+            roundedSurface(view, fill), tail, stylePadding, intrinsicWidth, intrinsicHeight)
+    }
+
+    /** REA fork: a flat rounded surface in a colour the theme states and with the corner radius the
+     *  theme's keys use. It is used where a theme paints a surface itself instead of filtering the
+     *  style's own drawable, so the style's shadows and its own radius do not show through. */
+    private fun roundedSurface(view: View, fill: Int): GradientDrawable {
+        val radius = (shading?.keyCornerRadiusDp ?: 0f) * view.resources.displayMetrics.density
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = radius
+            setColor(fill)
+        }
+    }
+
+    /** REA fork: replacing a background that carried the view's insets must not move the view's
+     *  content, so the padding the style's drawable gave the view is captured and put back. */
+    private inline fun keepingPadding(view: View, replace: () -> Unit) {
+        val left = view.paddingLeft
+        val top = view.paddingTop
+        val right = view.paddingRight
+        val bottom = view.paddingBottom
+        replace()
+        view.setPadding(left, top, right, bottom)
+    }
+
+    /** a drawable that paints nothing, e.g. the panel style the action key popup is given */
+    private fun isTransparent(drawable: Drawable) =
+        drawable is ColorDrawable && Color.alpha(drawable.color) == 0
 
     private fun getColorFilter(color: ColorType): ColorFilter? = when (color) {
         EMOJI_CATEGORY_SELECTED, CLIPBOARD_PIN -> accentColorFilter
@@ -1110,3 +1209,45 @@ enum class ColorType {
 
 // this is not used any more, but we keep in case a colorMap does not get filled for whatever reason
 fun ColorType.default() = ColorUtils.setAlphaComponent(name.hashCode() and 0xffffff, 255)
+
+/**
+ * A rounded surface that fills only the part of its bounds that lies above [tail] pixels from its
+ * bottom, and paints nothing below that. It is the flat bubble a theme that states its own key
+ * preview colour draws where the style's own drawable would stretch down to the key it previews.
+ *
+ * Size and padding are the style drawable's, so a wrap_content view that is measured against it -
+ * and then re-measured on every reuse - keeps its own size and the popup panel keeps its position:
+ * only the part below the key's top edge is not painted.
+ */
+private class TailClippedSurface(
+    private val surface: GradientDrawable,
+    private val tail: Int,
+    private val stylePadding: Rect,
+    private val intrinsicWidth: Int,
+    private val intrinsicHeight: Int
+) : Drawable() {
+    override fun draw(canvas: Canvas) {
+        surface.setBounds(bounds.left, bounds.top, bounds.right, bounds.bottom - tail)
+        surface.draw(canvas)
+    }
+
+    override fun getPadding(padding: Rect): Boolean {
+        padding.set(stylePadding)
+        return true
+    }
+
+    override fun setAlpha(alpha: Int) {
+        surface.alpha = alpha
+    }
+
+    override fun setColorFilter(colorFilter: ColorFilter?) {
+        surface.colorFilter = colorFilter
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity(): Int = surface.opacity
+
+    override fun getIntrinsicWidth(): Int = intrinsicWidth
+
+    override fun getIntrinsicHeight(): Int = intrinsicHeight
+}

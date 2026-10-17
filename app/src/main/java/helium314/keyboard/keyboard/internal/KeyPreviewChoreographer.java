@@ -86,7 +86,6 @@ public final class KeyPreviewChoreographer {
             KeyDrawParams drawParams, int fullKeyboardViewWidth, int[] originCoords) {
         keyPreviewView.setPreviewVisual(key, iconsSet, drawParams);
         keyPreviewView.measure(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        mParams.setGeometry(keyPreviewView);
         int previewWidth = keyPreviewView.getMeasuredWidth();
         int previewHeight = keyPreviewView.getMeasuredHeight();
         int keyDrawWidth = key.getDrawWidth();
@@ -108,7 +107,18 @@ public final class KeyPreviewChoreographer {
         boolean hasPopupKeys = (key.getPopupKeys() != null);
         keyPreviewView.setPreviewBackground(hasPopupKeys, keyPreviewPosition);
         Colors colors = Settings.getValues().mColors;
-        colors.setBackground(keyPreviewView, ColorType.KEY_PREVIEW_BACKGROUND);
+        if (colors.getPreviewBubbleAboveKey()) {
+            // REA fork: this theme's preview is a bubble that stops at the top edge of the key. Its
+            // bounds always reach the bottom of the key (see previewY below), so the part below the
+            // top edge is the tail to leave unpainted. And because there is no visible tail to align
+            // to, the popup keys keyboard is placed on the key itself, which is what the geometry of
+            // the last preview must not interfere with.
+            colors.setKeyPreviewBackground(keyPreviewView, key.getHeight() - mParams.mPreviewOffset);
+            mParams.clearGeometry();
+        } else {
+            colors.setBackground(keyPreviewView, ColorType.KEY_PREVIEW_BACKGROUND);
+            mParams.setGeometry(keyPreviewView);
+        }
 
         // The key preview is placed vertically above the top edge of the parent key with an
         // arbitrary offset.

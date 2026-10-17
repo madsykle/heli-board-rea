@@ -112,6 +112,17 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
                 (divider as ImageView).apply {
                     setImageResource(R.drawable.suggestions_strip_divider_tinted)
                     imageTintList = ColorStateList.valueOf(color)
+                    // REA fork: a theme may want a shorter rule than the divider drawable brings.
+                    // The height is a fraction of the strip, so it follows a changed strip height.
+                    colors.suggestionsDividerHeightRatio?.let { ratio ->
+                        val height = (resources.getDimensionPixelSize(
+                            R.dimen.config_suggestions_strip_height) * ratio).toInt()
+                        (drawable?.mutate() as? GradientDrawable)?.let { rule ->
+                            // the rule is one flat colour, so scaling the drawable is all it takes;
+                            // the view keeps its height and centres the shorter rule in it
+                            rule.setSize(rule.intrinsicWidth, height)
+                        }
+                    }
                 }
             }
             dividerViews.add(divider)

@@ -94,7 +94,7 @@ object KeyLabel {
     fun keyLabelToActualLabel(label: String, params: KeyboardParams): String {
         val newLabel = when (label) {
             SYMBOL_ALPHA -> if (params.mId.element.isAlphabet) {
-                params.mLocaleKeyboardInfos.labelSymbol
+                symbolKeyLabel(params)
             } else {
                 params.mLocaleKeyboardInfos.labelAlphabet
             }
@@ -139,8 +139,13 @@ object KeyLabel {
         else "$newLabel|!code/$code"
     }
 
+    /** REA fork: the label of the key that opens the symbols layout. A theme may state its own; the
+     *  framework's (and every locale file's) own reads "?123", the design says "123". */
+    private fun symbolKeyLabel(params: KeyboardParams) =
+        Settings.getValues().mColors.symbolKeyLabel ?: params.mLocaleKeyboardInfos.labelSymbol
+
     private fun getShiftLabel(params: KeyboardParams) = when (params.mId.element) {
-        KeyboardElement.SYMBOLS_SHIFTED -> params.mLocaleKeyboardInfos.labelSymbol
+        KeyboardElement.SYMBOLS_SHIFTED -> symbolKeyLabel(params)
         KeyboardElement.SYMBOLS -> params.mLocaleKeyboardInfos.getShiftSymbolLabel(
             Settings.getInstance().isTablet)
         KeyboardElement.ALPHABET_MANUAL_SHIFTED, KeyboardElement.ALPHABET_AUTOMATIC_SHIFTED -> "!icon/${KeyboardIconsSet.NAME_SHIFT_KEY_SHIFTED}"

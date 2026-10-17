@@ -4,18 +4,18 @@
     modified
     SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
 -->
-<!-- REA fork: iOS 27 popup key, 9dp radius to match the key grid. -->
+<!-- REA fork: iOS 27 popup key, same radius as the key grid (Ios27Palette.KEY_RADIUS_DP). -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true" >
         <shape android:shape="rectangle">
             <solid android:color="@color/key_background_normal_lxx_base_border" />
-            <corners android:radius="9dp" />
+            <corners android:radius="7dp" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle" >
             <solid android:color="@android:color/white" />
-            <corners android:radius="9dp" />
+            <corners android:radius="7dp" />
         </shape>
     </item>
 </selector>

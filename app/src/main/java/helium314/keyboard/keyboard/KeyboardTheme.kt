@@ -48,6 +48,9 @@ import androidx.core.graphics.toColorInt
  * keyboard shows through the panel and the keys. They scale the alphas written above (255 = use them
  * exactly as written), so both the colour and the transparency of a surface stay tunable in one place.
  *
+ * The few decisions the theme makes that are not colours — a label, a ratio, a shape that is drawn
+ * or not — are named here too, for the same reason: the theme stays tunable in one place.
+ *
  * Only [KeyboardTheme.THEME_IOS27] reads this; every other theme keeps its own colours untouched.
  */
 object Ios27Palette {
@@ -55,15 +58,17 @@ object Ios27Palette {
     /** the keyboard panel; the suggestion strip is part of the same slab and draws nothing of its own */
     val PANEL = 0xCC202127.toInt()
     /** character keys and the spacebar */
-    val KEY = 0x665B5F68.toInt()
+    val KEY = 0x80707072.toInt()
     /** any key surface while it is held down */
     val PRESSED = 0x997D828D.toInt()
-    /** functional keys: shift, delete, `?123`, comma, period, globe */
-    val MODIFIER = 0x992B2D35.toInt()
-    /** the action key: enter, search, done, send */
-    val ACTION = 0xFF626570.toInt()
+    /** functional keys: shift, delete, `123`, comma, period, globe */
+    val MODIFIER = 0x66505052.toInt()
+    /** the action key: enter, search, done, send — the modifier's own colour, there is no lighter tier */
+    val ACTION = MODIFIER
+    /** the keys inside a long-press popup, and the bubble that previews a single key press */
+    val POPUP_KEY = 0x99A0A0A6.toInt()
     /** the rules between the suggestion areas */
-    val DIVIDER = 0x30FFFFFF.toInt()
+    val DIVIDER = 0x18FFFFFF.toInt()
     // ---- text and icons -------------------------------------------------------------------------
     /** key letters and suggestion text */
     val CHARACTER = 0xFFF5F5F7.toInt()
@@ -82,11 +87,20 @@ object Ios27Palette {
     /** the darkening at the lower edge of a keycap: 0 leaves the key fill flat, which is the design */
     const val KEY_EDGE_SHADE = 0
     /** the faint hairline along the top inside edge of every keycap */
-    const val KEY_TOP_HIGHLIGHT = 0x1FFFFFFF
+    const val KEY_TOP_HIGHLIGHT = 0x0DFFFFFF
     /** corner radius of a keycap, in dp: keys, popup keys and emoji keys all use it */
-    const val KEY_RADIUS_DP = 9f
+    const val KEY_RADIUS_DP = 7f
     /** corner radius of the top corners of the panel, in dp */
     const val PANEL_RADIUS_DP = 28f
+    /** how tall the suggestion dividers are, as a fraction of the strip they sit in */
+    const val DIVIDER_HEIGHT_RATIO = 0.4f
+    // ---- decisions that are not colours ----------------------------------------------------------
+    /** the label of the key that opens the symbols layout; the framework's own says "?123" */
+    const val SYMBOL_LABEL = "123"
+    /** the design draws no "more suggestions" hint (the "…" under a suggestion) */
+    const val SHOW_MORE_SUGGESTIONS_HINT = false
+    /** the design's key preview is a bubble above the key, and the long-press panel sits on the key */
+    const val PREVIEW_BUBBLE_ABOVE_KEY = true
 
     /** the panel colour with [PANEL_ALPHA] applied; this is what the theme actually paints */
     val panel: Int get() = PANEL.scaledAlpha(PANEL_ALPHA)
@@ -98,6 +112,8 @@ object Ios27Palette {
     val modifier: Int get() = MODIFIER.scaledAlpha(KEY_ALPHA)
     /** the action key with [KEY_ALPHA] applied */
     val action: Int get() = ACTION.scaledAlpha(KEY_ALPHA)
+    /** a popup key, or a key preview, with [KEY_ALPHA] applied */
+    val popupKey: Int get() = POPUP_KEY.scaledAlpha(KEY_ALPHA)
 
     /** the shading for keys and panel, described once and used by both */
     val shading = SurfaceShading(
@@ -560,11 +576,18 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     panelOverImage = Ios27Palette.panel,
                     panelScrim = Ios27Palette.SCRIM_INTENSITY,
                     dividerColor = Ios27Palette.DIVIDER,
+                    dividerHeightRatio = Ios27Palette.DIVIDER_HEIGHT_RATIO,
+                    symbolLabel = Ios27Palette.SYMBOL_LABEL,
+                    moreSuggestionsHint = Ios27Palette.SHOW_MORE_SUGGESTIONS_HINT,
                     shading = Ios27Palette.shading,
                     // long-press popups and the more-suggestions popup use the same panel and key
-                    // palette as the keyboard they opened from
-                    popupKeysBackground = Ios27Palette.key,
-                    popupPanelBackground = Ios27Palette.panel
+                    // palette as the keyboard they opened from; the popup's keys are a step lighter
+                    // than the letter keys, and the preview is a bubble that stops at the key rather
+                    // than a tail that connects the two
+                    popupKeysBackground = Ios27Palette.popupKey,
+                    popupPreviewBackground = Ios27Palette.popupKey,
+                    popupPanelBackground = Ios27Palette.panel,
+                    previewAboveKey = Ios27Palette.PREVIEW_BUBBLE_ABOVE_KEY
                 )
                 else -> { // user-defined theme
                     val colorSettings = readUserColors(prefs, themeName)

@@ -84,6 +84,8 @@ final class SuggestionStripLayoutHelper {
     private final int mCenterPositionInStrip;
     private final int mTypedWordPositionWhenAutocorrect;
     private final Drawable mMoreSuggestionsHint;
+    /** REA fork: false if the theme draws no hint under a suggestion that opens more of them */
+    private final boolean mShowMoreSuggestionsHint;
     private static final String MORE_SUGGESTIONS_HINT = "…";
 
     private static final CharacterStyle BOLD_SPAN = new StyleSpan(Typeface.BOLD);
@@ -124,6 +126,8 @@ final class SuggestionStripLayoutHelper {
         mColorAutoCorrect = colors.get(ColorType.SUGGESTION_AUTO_CORRECT);
         mColorSuggested = colors.get(ColorType.SUGGESTED_WORD);
         final int colorMoreSuggestionsHint = colors.get(ColorType.MORE_SUGGESTIONS_HINT);
+        // REA fork: some designs draw no hint that more suggestions are available
+        mShowMoreSuggestionsHint = colors.getShowMoreSuggestionsHint();
 
         mSuggestionsCountInStrip = a.getInt(
                 R.styleable.SuggestionStripView_suggestionsCountInStrip,
@@ -399,7 +403,8 @@ final class SuggestionStripLayoutHelper {
     private TextView layoutWord(final Context context, final int positionInStrip, final int width) {
         final TextView wordView = mWordViews.get(positionInStrip);
         final CharSequence word = wordView.getText();
-        if (positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {
+        if (positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable
+                && mShowMoreSuggestionsHint) {
             // TODO: This "more suggestions hint" should have a nicely designed icon.
             wordView.setCompoundDrawablesWithIntrinsicBounds(null, null, null, mMoreSuggestionsHint);
             // HACK: Align with other TextViews that have no compound drawables.

@@ -77,6 +77,14 @@ public final class KeyPreviewDrawParams {
         return mVisibleHeight;
     }
 
+    /** REA fork: forget the geometry of the last key preview, for a theme whose preview is a bubble
+     *  above the key rather than a tail reaching down to it. The popup panel is then placed on the
+     *  key, and nothing may align it to a preview that is not shaped like one. */
+    public void clearGeometry() {
+        mVisibleWidth = 0;
+        mVisibleHeight = 0;
+    }
+
     public void setPopupEnabled(final boolean enabled) {
         mShowPopup = enabled;
     }
