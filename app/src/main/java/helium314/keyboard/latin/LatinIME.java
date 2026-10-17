@@ -130,6 +130,7 @@ public class LatinIME extends InputMethodService implements
     public final KeyboardActionListener mKeyboardActionListener;
     private int mOriginalNavBarColor = 0;
     private int mOriginalNavBarFlags = 0;
+    private boolean mOriginalNavBarContrastEnforced = true;
 
     // UIHandler is needed when creating InputLogic
     public final UIHandler mHandler = new UIHandler(this);
@@ -1822,18 +1823,32 @@ public class LatinIME extends InputMethodService implements
         final SettingsValues settingsValues = mSettings.getCurrent();
         if (!settingsValues.mCustomNavBarColor)
             return;
-        final int color = settingsValues.mColors.get(ColorType.NAVIGATION_BAR);
+        // REA fork: a theme whose panel carries a background image wants the panel to reach the bottom
+        // of the screen and show under the gesture pill, rather than stop at an opaque bar. The system
+        // already lays the input method window out that way (it fits the nav bar inset on the left, top
+        // and right of the window, never at the bottom), so all that is needed is a transparent bar and
+        // no contrast scrim drawn over it. The colour the bar would otherwise have is still what decides
+        // whether the pill is drawn light or dark.
+        //
+        // Below Q there is no way to turn the contrast enforcement off, so the bar keeps that colour.
+        final int navBarColor = settingsValues.mColors.get(ColorType.NAVIGATION_BAR);
+        final boolean transparent = settingsValues.mColors.getPanelUnderNavigationBar()
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
         final Window window = getWindow().getWindow();
         if (window == null)
             return;
         mOriginalNavBarColor = window.getNavigationBarColor();
-        window.setNavigationBarColor(color);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+            mOriginalNavBarContrastEnforced = window.isNavigationBarContrastEnforced();
+        window.setNavigationBarColor(transparent ? Color.TRANSPARENT : navBarColor);
+        if (transparent)
+            window.setNavigationBarContrastEnforced(false);
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
             return;
         final View view = window.getDecorView();
         mOriginalNavBarFlags = view.getSystemUiVisibility();
-        if (ColorUtilKt.isBrightColor(color)) {
+        if (ColorUtilKt.isBrightColor(navBarColor)) {
             view.setSystemUiVisibility(mOriginalNavBarFlags | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         } else {
             view.setSystemUiVisibility(mOriginalNavBarFlags & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
@@ -1850,6 +1865,8 @@ public class LatinIME extends InputMethodService implements
             return;
         }
         window.setNavigationBarColor(mOriginalNavBarColor);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+            window.setNavigationBarContrastEnforced(mOriginalNavBarContrastEnforced);
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
             return;

@@ -362,15 +362,20 @@ HeliBoard has its own *Appearance → Keyboard background image* setting, and th
 it as its material: with an image set the panel **is** that image, and the keys are
 translucent panes over it (see *Glass* above).
 
-**The navigation bar follows the panel's bottom edge.** The system draws the navigation bar in the
-strip just below the panel, painted with the colour the IME window declares. Left at the flat panel
-colour it reads as a seam against the image, so when an image is set the theme paints it with the
-colour of the panel's lowest pixel: the average colour of the image's bottom row, under the panel
-colour, then under the panel's bottom edge shade, in that order (`bottomRowAverage` and
-`panelBottomColour` in `latin/common/Colors.kt`, fed into `navBar`). Without an image the bar keeps
-the flat panel colour, and every other theme is untouched. This is a colour match, not a true
-extension of the image under the bar: an IME window ends at the navigation bar and cannot draw behind
-it.
+**The panel runs under the navigation bar.** The system does not inset the input method window for the
+navigation bar at the bottom — it lays the window out over it (the nav bar inset is fitted on the left,
+top and right only) — but SystemUI draws an *opaque, translucent* navigation bar window on top of the
+window's bottom strip, which would cut the panel off. With a background image set the theme therefore
+asks for a **transparent** navigation bar and turns contrast enforcement off
+(`panelUnderNavigationBar` in `latin/common/Colors.kt`, used by `setNavigationBarColor` in
+`latin/LatinIME.java`), so what shows under the gesture pill is the panel's own image. The colour the
+bar would otherwise have still decides whether the pill is drawn light or dark. Without an image the
+bar keeps the flat panel colour, every other theme is untouched, and below Android 10 — where contrast
+enforcement cannot be turned off — the coloured bar is kept as the fallback.
+
+Nothing has to be re-laid-out for this: the nav bar inset is zero at the bottom on the devices checked,
+so the keys already sit above the bar and their touch targets do not move; only the panel, which
+already reached the bottom of the screen, stops being covered.
 
 **Where the file goes.** The picker copies whatever you choose into *device-protected* app
 storage, under these four names:

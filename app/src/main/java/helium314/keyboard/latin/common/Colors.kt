@@ -69,6 +69,10 @@ interface Colors {
      *  a colour lighter than the surface. So the shading is a layer of its own, drawn untinted over
      *  the surface. */
     val surfaceShading: SurfaceShading? get() = null
+    /** REA fork: whether the panel wants the navigation bar to be transparent, so that the panel and
+     *  its background image run to the bottom of the screen and show under the gesture pill instead
+     *  of stopping at the bar. False colours the bar with [ColorType.NAVIGATION_BAR], as upstream. */
+    val panelUnderNavigationBar: Boolean get() = false
     val accentShiftedIcon: Boolean get() =
         Settings.getCurrentContext().prefs().getBoolean(Settings.PREF_ACCENT_SHIFTED_ICON, Defaults.PREF_ACCENT_SHIFTED_ICON)
 
@@ -569,6 +573,8 @@ class DefaultColors (
 ) : Colors {
     override val suggestionsDivider: Int? get() = dividerColor
     override val surfaceShading: SurfaceShading? get() = shading
+    /** REA fork: only a panel that actually carries a background image wants to reach under the bar */
+    override val panelUnderNavigationBar: Boolean get() = panelOverImage != null && keyboardBackground != null
     private val navBar: Int
     /** brightened or darkened variant of [background], to be used if exact background color would be
      *  bad contrast, e.g. popup keys popup or no border space bar */
@@ -640,14 +646,7 @@ class DefaultColors (
             keyboardBackground = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(background, darkerBackground))
             backgroundSetupDone = true
         } else {
-            // REA fork: a theme that lays a translucent panel over a user background image also owns
-            // the navigation bar, which the system draws immediately below the panel. Left at the
-            // flat panel colour the bar reads as a seam against the image, so it is painted with the
-            // colour of the panel's *lowest pixel*: the image's bottom row under the panel colour and
-            // under the panel's own bottom edge shade, in that order. Every other theme keeps the
-            // flat colour.
-            val imageBottom = if (panelOverImage != null) keyboardBackground?.let(::bottomRowAverage) else null
-            navBar = imageBottom?.let { panelBottomColour(it, background, shading) } ?: background
+            navBar = background
         }
 
         adjustedBackgroundFilter = colorFilter(adjustedBackground)
@@ -920,42 +919,6 @@ private fun pressedStateList(pressed: Int, normal: Int): ColorStateList {
 private fun activatedStateList(activated: Int, normal: Int): ColorStateList {
     val states = arrayOf(intArrayOf(android.R.attr.state_activated), intArrayOf(-android.R.attr.state_activated))
     return ColorStateList(states, intArrayOf(activated, normal))
-}
-
-/**
- * REA fork: the average colour of the bottom row of a background image, or null when there is no
- * image to average. Alpha is the weight, so a translucent pixel contributes proportionally less; the
- * result is opaque. It exists so the navigation bar can be painted with the colour the panel ends on.
- */
-private fun bottomRowAverage(image: Drawable): Int? {
-    val bitmap = (image as? BitmapDrawable)?.bitmap ?: return null
-    if (bitmap.width <= 0 || bitmap.height <= 0) return null
-    val row = IntArray(bitmap.width)
-    bitmap.getPixels(row, 0, bitmap.width, 0, bitmap.height - 1, bitmap.width, 1)
-    var alpha = 0L
-    var red = 0L
-    var green = 0L
-    var blue = 0L
-    for (pixel in row) {
-        val a = Color.alpha(pixel)
-        alpha += a
-        red += Color.red(pixel).toLong() * a
-        green += Color.green(pixel).toLong() * a
-        blue += Color.blue(pixel).toLong() * a
-    }
-    if (alpha == 0L) return null
-    return Color.argb(255, (red / alpha).toInt(), (green / alpha).toInt(), (blue / alpha).toInt())
-}
-
-/**
- * REA fork: the colour of the panel's lowest pixel: [imageBottom] under [panelColour], then under the
- * panel's own bottom edge shade. The panel is drawn as image, panel colour, shading, so this is what
- * the seam the navigation bar continues from actually looks like; matching it is what removes the seam.
- */
-private fun panelBottomColour(imageBottom: Int, panelColour: Int, shading: SurfaceShading?): Int {
-    val shaded = ColorUtils.compositeColors(panelColour, imageBottom)
-    val edge = shading?.panelEdgeShade ?: return shaded
-    return if (edge == 0) shaded else ColorUtils.compositeColors(edge, shaded)
 }
 
 /**
