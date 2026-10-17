@@ -408,19 +408,22 @@ to give the image the panel's aspect ratio.
 
 **Panel size.** Computed from `res/values/config.xml` (+ `values-land`) for this device
 (RMX2001, 1080×2400, 480 dpi). The panel is the whole keyboard frame, including the
-suggestion/toolbar strip:
+suggestion/toolbar strip, plus — in portrait — the strip under the navigation bar that the
+frame does not cover (see *The panel runs under the navigation bar* above, which is why these
+heights are one navigation bar, 45 px here, more than the frame):
 
 | Situation | Panel | Aspect | Give it |
 | --- | --- | --- | --- |
-| Portrait, no number row | 1080×787 | 1.37:1 | 1080×787, or 2160×1574 for a higher-res source |
-| Portrait, number row on | 1080×940 | 1.15:1 | 1080×940 |
+| Portrait, no number row | 1080×832 (787 frame + 45 under the bar) | 1.30:1 | 1080×832, or 2160×1664 for a higher-res source |
+| Portrait, number row on | 1080×985 (940 + 45) | 1.10:1 | 1080×985 |
 | Landscape | ≈2400×605 | ≈4.0:1 | a separate `_landscape` file — the portrait aspect cannot serve this |
 
 Supply at least the panel's own pixel size: a larger image is downscaled with filtering
 (fine), a smaller one is upscaled and looks soft. Two caveats on the numbers: they follow
 the user's keyboard-height slider (`mKeyboardHeightScale`, default 1.0), which changes the
-height and therefore the aspect; and in landscape the width can be reduced by system-bar
-insets, so the landscape aspect is approximate. Because portrait is ~1.4:1 and landscape is
+height and therefore the aspect; and in landscape the navigation bar is at the side, so there
+is no strip and the panel is the frame, while the width can be reduced by system-bar insets,
+which makes the landscape aspect approximate. Because portrait is ~1.3:1 and landscape is
 ~4:1, no single image is ideal for both — pick the one you care about, or supply both.
 
 A practical note: since the image is stretched and never cropped, a *photo* will distort.
