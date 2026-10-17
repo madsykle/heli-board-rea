@@ -15,7 +15,8 @@ tweak does not have to rediscover them.
 | --- | --- |
 | Palette | `keyboard/KeyboardTheme.kt` — `THEME_IOS27` (`rea_ios27`) |
 | Panel + key geometry | `res/drawable/keyboard_background_lxx_base_border.xml`, `btn_keyboard_key_*_lxx_base_border.xml` |
-| Suggestion strip | `res/drawable/keyboard_suggest_strip_lxx_base_border.xml` |
+| Suggestion strip | `res/drawable/keyboard_suggest_strip_lxx_base_border.xml`, `res/drawable/suggestions_strip_divider.xml` |
+| Borderless spacebar | `res/drawable/btn_keyboard_spacebar_base.xml` **and** `res/drawable-v26/btn_keyboard_spacebar_base.xml` — the `-v26` copy wins on every modern device, so keep the two in step |
 | Popup keys / panel | `res/drawable/btn_keyboard_key_popup_lxx_base.xml`, `keyboard_popup_panel_background_lxx_base.xml` |
 | It ships as the default | `latin/settings/Defaults.kt` |
 

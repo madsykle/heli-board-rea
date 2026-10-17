@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright (C) 2014 The Android Open Source Project
+    modified
+    SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
+-->
+<!--
+    REA fork: keys are 9dp rounded in the iOS 27 design, so the borderless spacebar
+    follows. The percentage vertical inset is upstream's, and is what makes the
+    borderless spacebar read as a wide pill rather than a full height key.
+
+    This is the API 26+ copy; there is a matching dp-based copy in drawable/. Keep
+    the two in step, because drawable-v26 wins on any device this build runs on.
+-->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:insetTop="25%p" android:insetBottom="25%p">
     <shape android:shape="rectangle">
         <solid android:color="@color/key_background_lxx_base" />
-        <corners android:radius="5dp" />
+        <corners android:radius="9dp" />
     </shape>
 </inset>
