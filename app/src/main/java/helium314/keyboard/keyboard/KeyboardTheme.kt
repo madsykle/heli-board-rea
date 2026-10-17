@@ -72,6 +72,10 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
         const val THEME_SOLARIZED = "rea_solarized"
         const val THEME_TERMINAL = "rea_terminal"
         const val THEME_SUNSET = "rea_sunset"
+        // REA fork: palette ported from the maintainer's Figma "iOS 27 Dark" design.
+        // The values are the *rendered* colours, i.e. the design's translucent layers
+        // already composited onto the panel behind them, because an IME cannot blur.
+        const val THEME_IOS27 = "rea_ios27"
         fun getAvailableDefaultColors(prefs: SharedPreferences, isNight: Boolean) = listOfNotNull(
             if (!isNight) THEME_LIGHT else null, THEME_DARK,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) THEME_DYNAMIC else null,
@@ -88,6 +92,7 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
             THEME_OCEAN,
             if (!isNight) THEME_SAND else null,
             THEME_VIOLETTE,
+            THEME_IOS27,
             THEME_MIDNIGHT,
             THEME_NORD,
             THEME_GRUVBOX,
@@ -419,6 +424,21 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     Color.rgb(51, 36, 42),
                     Color.rgb(255, 233, 214),
                     Color.rgb(224, 187, 166),
+                    keyboardBackground = backgroundImage
+                )
+                THEME_IOS27 -> DefaultColors(
+                    themeStyle,
+                    hasKeyBorders,
+                    Color.rgb(247, 206, 105), // accent — gesture trail, highlighted suggestion
+                    Color.rgb(44, 47, 56),    // panel, light end of the 150deg ramp
+                    Color.rgb(86, 88, 95),    // character keys, light end of the 160deg ramp
+                    Color.rgb(47, 50, 60),    // functional keys (shift/delete/return/globe)
+                    Color.rgb(86, 88, 95),    // spacebar, same family as character keys
+                    Color.rgb(245, 245, 247), // key text
+                    Color.rgb(180, 181, 191), // key hint text (shifted/popup letters)
+                    Color.rgb(245, 245, 247), // suggestion text
+                    Color.rgb(197, 199, 208), // spacebar text
+                    Color.rgb(247, 206, 105), // gesture trail
                     keyboardBackground = backgroundImage
                 )
                 else -> { // user-defined theme

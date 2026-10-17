@@ -1,15 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item >
-        <shape android:shape="rectangle">
-            <solid android:color="@color/key_bottom_bevel_lxx_base" />
-            <corners android:radius="5dp"/>
-        </shape>
-    </item>
-    <item android:bottom="1dp">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/key_background_normal_lxx_base_border" />
-            <corners android:radius="5dp" />
-        </shape>
-    </item>
-</layer-list>
+<!--
+    Copyright (C) 2015 The Android Open Source Project
+    modified
+    SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
+-->
+<!--
+    REA fork: iOS 27 dark key.
+
+    Replaces the upstream two-layer bevel with the design's single rounded key:
+    border-radius 9px on a 43px key, filled with linear-gradient(160deg, #696b75aa,
+    #4b4d57bb). 160deg is very close to a straight top-to-bottom ramp, so the baked
+    ramp is white (1.0) to 0.80 grey; Colors tints it with the theme key colour in
+    MODULATE mode, reproducing the two stop gradient from the design.
+
+    The design's inset top highlight (inset 0 1px 0 #ffffff25) is deliberately absent:
+    MODULATE can only darken, so a highlight baked in as white would render as the
+    key colour itself and be invisible.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+       android:shape="rectangle">
+    <corners android:radius="9dp" />
+    <gradient
+        android:angle="270"
+        android:startColor="#FFFFFFFF"
+        android:endColor="#FFCCCCCC" />
+</shape>

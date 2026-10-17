@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright (C) 2015 The Android Open Source Project
+    modified
+    SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
+-->
+<!--
+    REA fork: iOS 27 dark pressed key.
+
+    Flat rather than ramped, so the pressed state is a single uniform colour. The
+    colour itself comes from the theme's pressed entry in the key state list, not
+    from this drawable. Note the design's pressed key (#888b99) is a good deal
+    lighter than HeliBoard's pressed colour, which is derived in code by brightening
+    the normal key colour by a fixed small step; see PRIVACY.md / the theme README.
+-->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/key_background_normal_lxx_base_border" />
-    <corners android:radius="5dp" />
+       android:shape="rectangle">
+    <corners android:radius="9dp" />
+    <solid android:color="@android:color/white" />
 </shape>

@@ -762,6 +762,7 @@ New dictionary:
     <string name="theme_name_rea_solarized" tools:keep="@string/theme_name_rea_solarized">Solarized Dark</string>
     <string name="theme_name_rea_terminal" tools:keep="@string/theme_name_rea_terminal">Terminal Green</string>
     <string name="theme_name_rea_sunset" tools:keep="@string/theme_name_rea_sunset">Sunset</string>
+    <string name="theme_name_rea_ios27" tools:keep="@string/theme_name_rea_ios27">iOS 27 Dark</string>
     <!-- Theme name for user-defined theme -->
     <string name="theme_name_user" tools:keep="@string/theme_name_user">User-Defined</string>
     <!-- Theme name for user-defined theme night mode theme -->

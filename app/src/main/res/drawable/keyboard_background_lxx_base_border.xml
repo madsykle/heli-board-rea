@@ -1,5 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright (C) 2015 The Android Open Source Project
+    modified
+    SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
+-->
+<!--
+    REA fork: iOS 27 dark keyboard panel.
+
+    The design specifies linear-gradient(150deg, #45495788, #202127cc 45%, #27282ee6),
+    a translucent slate ramp over whatever app sits behind it. An IME cannot blur the
+    app behind it on Android, so this is rendered opaque rather than translucent, and
+    the stops are baked here as a white-to-grey ramp.
+
+    Colors applies the theme background colour to this drawable as a MODULATE colour
+    filter, which multiplies: white (1.0) renders as the plain background colour,
+    0.66 as the darker mid stop, 0.87 as the closing stop. That is how a three-stop
+    design gradient is expressed through the single tint colour the theme system
+    supports.
+-->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
        android:shape="rectangle">
-    <solid android:color="@color/keyboard_background_lxx_base_border" />
+    <corners
+        android:topLeftRadius="28dp"
+        android:topRightRadius="28dp" />
+    <gradient
+        android:angle="270"
+        android:startColor="#FFFFFFFF"
+        android:centerColor="#FFA8A8A8"
+        android:centerY="0.45"
+        android:endColor="#FFDEDEDE" />
 </shape>
