@@ -65,6 +65,13 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
         const val THEME_PINK = "pink"
         const val THEME_SAND = "sand"
         const val THEME_VIOLETTE = "violette"
+        // REA fork additions. All are dark palettes so they are offered day and night.
+        const val THEME_MIDNIGHT = "rea_midnight"
+        const val THEME_NORD = "rea_nord"
+        const val THEME_GRUVBOX = "rea_gruvbox"
+        const val THEME_SOLARIZED = "rea_solarized"
+        const val THEME_TERMINAL = "rea_terminal"
+        const val THEME_SUNSET = "rea_sunset"
         fun getAvailableDefaultColors(prefs: SharedPreferences, isNight: Boolean) = listOfNotNull(
             if (!isNight) THEME_LIGHT else null, THEME_DARK,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) THEME_DYNAMIC else null,
@@ -80,7 +87,13 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
             if (!isNight) THEME_PINK else null,
             THEME_OCEAN,
             if (!isNight) THEME_SAND else null,
-            THEME_VIOLETTE
+            THEME_VIOLETTE,
+            THEME_MIDNIGHT,
+            THEME_NORD,
+            THEME_GRUVBOX,
+            THEME_SOLARIZED,
+            THEME_TERMINAL,
+            THEME_SUNSET
         )
         val STYLES = arrayOf(STYLE_MATERIAL, STYLE_HOLO, STYLE_ROUNDED)
 
@@ -334,6 +347,78 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     Color.rgb(150, 150, 216),
                     Color.WHITE,
                     Color.WHITE,
+                    keyboardBackground = backgroundImage
+                )
+                THEME_MIDNIGHT -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    Color.rgb(108, 140, 255), // accent
+                    Color.rgb(11, 16, 32),    // background
+                    Color.rgb(21, 28, 46),    // keys
+                    Color.rgb(30, 39, 64),    // functional keys
+                    Color.rgb(21, 28, 46),    // spacebar
+                    Color.rgb(230, 236, 255), // text
+                    Color.rgb(169, 182, 217), // hint text
+                    keyboardBackground = backgroundImage
+                )
+                THEME_NORD -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    Color.rgb(136, 192, 208),
+                    Color.rgb(46, 52, 64),
+                    Color.rgb(59, 66, 82),
+                    Color.rgb(67, 76, 94),
+                    Color.rgb(59, 66, 82),
+                    Color.rgb(236, 239, 244),
+                    Color.rgb(216, 222, 233),
+                    keyboardBackground = backgroundImage
+                )
+                THEME_GRUVBOX -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    Color.rgb(254, 128, 25),
+                    Color.rgb(40, 40, 40),
+                    Color.rgb(60, 56, 54),
+                    Color.rgb(80, 73, 69),
+                    Color.rgb(60, 56, 54),
+                    Color.rgb(235, 219, 178),
+                    Color.rgb(213, 196, 161),
+                    keyboardBackground = backgroundImage
+                )
+                THEME_SOLARIZED -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    Color.rgb(38, 139, 210),
+                    Color.rgb(0, 43, 54),
+                    Color.rgb(7, 54, 66),
+                    Color.rgb(11, 68, 82),
+                    Color.rgb(7, 54, 66),
+                    Color.rgb(147, 161, 161),
+                    Color.rgb(131, 148, 150),
+                    keyboardBackground = backgroundImage
+                )
+                THEME_TERMINAL -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    Color.rgb(51, 255, 102),
+                    Color.rgb(8, 18, 10),
+                    Color.rgb(14, 31, 20),
+                    Color.rgb(20, 48, 30),
+                    Color.rgb(14, 31, 20),
+                    Color.rgb(182, 255, 201),
+                    Color.rgb(111, 227, 154),
+                    keyboardBackground = backgroundImage
+                )
+                THEME_SUNSET -> DefaultColors(
+                    themeStyle,
+                    hasBorders,
+                    Color.rgb(255, 138, 91),
+                    Color.rgb(36, 26, 30),
+                    Color.rgb(51, 36, 42),
+                    Color.rgb(69, 47, 56),
+                    Color.rgb(51, 36, 42),
+                    Color.rgb(255, 233, 214),
+                    Color.rgb(224, 187, 166),
                     keyboardBackground = backgroundImage
                 )
                 else -> { // user-defined theme

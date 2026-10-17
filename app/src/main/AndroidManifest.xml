@@ -12,14 +12,15 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WRITE_USER_DICTIONARY" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- REA fork: READ_CONTACTS removed. The keyboard never needs the address book;
+         contact-name suggestions are permanently unavailable instead of merely opt-in. -->
 
     <application android:label="@string/english_ime_name"
             android:name="helium314.keyboard.latin.App"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:supportsRtl="true"
-            android:allowBackup="true"
+            android:allowBackup="false"
             android:defaultToDeviceProtectedStorage="true"
             android:directBootAware="true"
             android:enableOnBackInvokedCallback="true"
@@ -119,16 +120,9 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 android:resource="@xml/clipboard_provider_path"/>
         </provider>
 
-        <!-- necessary for sending mail attachments, remove when data gathering phase is done (end of 2026 latest) -->
-        <provider android:name="helium314.keyboard.settings.screens.gesturedata.GestureFileProvider"
-            android:authorities="@string/gesture_data_provider_authority"
-            android:enabled="true"
-            android:grantUriPermissions="true"
-            android:exported="false">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/gesture_data_path"/>
-        </provider>
+        <!-- REA fork: GestureFileProvider removed. It existed only to export collected
+             gesture/typing traces as a zip via mail. The gathering code is disabled too;
+             this provider removal also removes the declared capability. -->
     </application>
 
     <queries>

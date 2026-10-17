@@ -755,6 +755,13 @@ New dictionary:
     <string name="theme_name_sand" tools:keep="@string/theme_name_sand">Sand</string>
     <!-- Theme name for violette theme -->
     <string name="theme_name_violette" tools:keep="@string/theme_name_violette">Violette</string>
+    <!-- REA fork colour themes -->
+    <string name="theme_name_rea_midnight" tools:keep="@string/theme_name_rea_midnight">Midnight</string>
+    <string name="theme_name_rea_nord" tools:keep="@string/theme_name_rea_nord">Nord</string>
+    <string name="theme_name_rea_gruvbox" tools:keep="@string/theme_name_rea_gruvbox">Gruvbox</string>
+    <string name="theme_name_rea_solarized" tools:keep="@string/theme_name_rea_solarized">Solarized Dark</string>
+    <string name="theme_name_rea_terminal" tools:keep="@string/theme_name_rea_terminal">Terminal Green</string>
+    <string name="theme_name_rea_sunset" tools:keep="@string/theme_name_rea_sunset">Sunset</string>
     <!-- Theme name for user-defined theme -->
     <string name="theme_name_user" tools:keep="@string/theme_name_user">User-Defined</string>
     <!-- Theme name for user-defined theme night mode theme -->

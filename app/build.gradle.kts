@@ -1,4 +1,12 @@
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationVariant
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.TaskAction
 
 plugins {
     id("com.android.application")
@@ -10,11 +18,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "helium314.keyboard"
+        applicationId = "com.rea.heliboard"
         minSdk = 21
         targetSdk = 37
         versionCode = 4201
-        versionName = "4.2"
+        versionName = "4.2-rea.1"
         ndk {
             abiFilters.clear()
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
@@ -113,6 +121,67 @@ android {
     lint {
         abortOnError = true
     }
+}
+
+// ---------------------------------------------------------------------------
+// Privacy guard (REA fork)
+//
+// HeliBoard is advertised as 100% offline. This task turns that promise into an
+// enforced build invariant: any build whose *merged* manifest declares a
+// network or personal-data permission fails, as does a build that re-enables
+// OS-level backup. Libraries pulled in later cannot silently reintroduce
+// capability.
+// ---------------------------------------------------------------------------
+val forbiddenManifestPermissions = listOf(
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.ACCESS_WIFI_STATE",
+    "android.permission.CHANGE_NETWORK_STATE",
+    "android.permission.CHANGE_WIFI_STATE",
+    "android.permission.READ_CONTACTS",
+    "android.permission.READ_CALL_LOG",
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_COARSE_LOCATION",
+)
+
+abstract class PrivacyGuardTask : DefaultTask() {
+    @get:InputFile
+    abstract val mergedManifest: RegularFileProperty
+
+    @get:Input
+    abstract val forbidden: ListProperty<String>
+
+    @TaskAction
+    fun check() {
+        val text = mergedManifest.get().asFile.readText()
+        val found = forbidden.get().filter { text.contains("android:name=\"$it\"") }
+        if (found.isNotEmpty()) {
+            throw GradleException(
+                "Privacy guard failed: the merged manifest declares forbidden permission(s): " +
+                    found.joinToString(", ") + ". Remove them or update PrivacyGuardTask deliberately."
+            )
+        }
+        if (!text.contains("android:allowBackup=\"false\"")) {
+            throw GradleException(
+                "Privacy guard failed: android:allowBackup is not \"false\", so keyboard history, " +
+                    "clipboard and dictionaries could leave the device through OS backup."
+            )
+        }
+    }
+}
+
+androidComponents.onVariants { variant: ApplicationVariant ->
+    val guard = tasks.register(
+        "privacyGuard" + variant.name.replaceFirstChar { it.uppercaseChar() },
+        PrivacyGuardTask::class.java,
+    ) {
+        mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+        forbidden.set(forbiddenManifestPermissions)
+        group = "verification"
+        description = "Fails if the merged manifest reintroduces network or personal-data permissions."
+    }
+    tasks.matching { it.name == "assemble" + variant.name.replaceFirstChar { it.uppercaseChar() } }
+        .configureEach { dependsOn(guard) }
 }
 
 dependencies {

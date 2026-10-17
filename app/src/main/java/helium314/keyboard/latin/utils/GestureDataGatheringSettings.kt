@@ -48,19 +48,12 @@ object GestureDataGatheringSettings {
     private const val PREF_SHOW_REMINDER_DIALOG_NEXT = "gesture_data_show_reminder_dialog_next_time"
 
 
-    fun isInActiveGatheringMode(editorInfo: EditorInfo) =
-        dictTestImeOption == editorInfo.privateImeOptions && gestureDataActiveFacilitator != null
+    // REA fork: gesture/word data gathering is disabled outright. This is the NLNet data
+    // collection project; upstream intends to remove it, we disable it now. Returning false
+    // here makes every calling site inert no matter what the stored preferences say.
+    fun isInActiveGatheringMode(editorInfo: EditorInfo) = false
 
-    fun isBackgroundGatheringEnabled(prefs: SharedPreferences): Boolean {
-        if (!prefs.getBoolean(PREF_BACKGROUND_GATHERING_ENABLED, false)) return false
-        val disabledBefore = prefs.getLong(PREF_BACKGROUND_DISABLED_BEFORE_TIME_MILLIS, 0L)
-        if (disabledBefore > SystemClock.elapsedRealtime() + 5 * 60 * 1000L) {
-            // elapsedRealtime decreased -> phone was rebooted -> reset
-            prefs.edit { remove(PREF_BACKGROUND_DISABLED_BEFORE_TIME_MILLIS) }
-            return true
-        }
-        return SystemClock.elapsedRealtime() > disabledBefore
-    }
+    fun isBackgroundGatheringEnabled(prefs: SharedPreferences): Boolean = false
 
     fun setBackgroundGatheringEnabled(prefs: SharedPreferences, enabled: Boolean) = prefs.edit {
         putBoolean(PREF_BACKGROUND_GATHERING_ENABLED, enabled)

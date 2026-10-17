@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="clipboard_provider_authority" translatable="false">helium314.keyboard.clipprovider</string>
+    <!-- REA fork: authority is fork-specific so this keyboard can be installed
+         side by side with upstream HeliBoard without a provider-authority clash. -->
+    <string name="clipboard_provider_authority" translatable="false">com.rea.heliboard.clipprovider</string>
 </resources>
