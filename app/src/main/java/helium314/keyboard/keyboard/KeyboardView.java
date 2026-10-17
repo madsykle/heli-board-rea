@@ -127,17 +127,18 @@ public class KeyboardView extends View {
         else
             mActionKeyBackground = mColors.selectAndColorDrawable(keyboardViewAttr, ColorType.ACTION_KEY_BACKGROUND);
 
-        // REA fork: themes may ask for soft shading on their keys. A key surface is painted by
-        // tinting a drawable with the theme's key colour, and a tint can only multiply (glass keys:
-        // only replace) that colour, so it can never paint anything lighter than the surface. The
-        // highlight the design wants along the top edge is therefore a separate drawable that is not
+        // REA fork: themes may ask for shading on their keys. A key surface is painted by tinting a
+        // drawable with the theme's key colour, and a tint can only multiply (glass keys: only
+        // replace) that colour, so it can never paint anything lighter than the surface. The faint
+        // hairline the design wants along the top edge is therefore a separate drawable that is not
         // tinted, built once here like the key backgrounds themselves.
         final SurfaceShading shading = mColors.getSurfaceShading();
         if (shading == null) {
             mKeyShading = null;
         } else {
-            final float radius = shading.getKeyCornerRadiusDp() * getResources().getDisplayMetrics().density;
-            mKeyShading = shading.overlay(new float[] { radius, radius, radius, radius }, true);
+            final float density = getResources().getDisplayMetrics().density;
+            final float radius = shading.getKeyCornerRadiusDp() * density;
+            mKeyShading = shading.keyShading(radius, density);
         }
 
         mSpacebarIconWidthRatio = keyboardViewAttr.getFloat(

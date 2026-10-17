@@ -58,8 +58,8 @@ object Ios27Palette {
     val KEY = 0x665B5F68.toInt()
     /** any key surface while it is held down */
     val PRESSED = 0x997D828D.toInt()
-    /** functional keys: shift, delete, globe, mode keys */
-    val MODIFIER = 0x44333842.toInt()
+    /** functional keys: shift, delete, `?123`, comma, period, globe */
+    val MODIFIER = 0x992B2D35.toInt()
     /** the action key: enter, search, done, send */
     val ACTION = 0xFF626570.toInt()
     /** the rules between the suggestion areas */
@@ -71,16 +71,18 @@ object Ios27Palette {
     val SECONDARY_ICON = 0xB8C0C9.toInt()
     // ---- alphas, applied on top of the colours above --------------------------------------------
     /** how opaque the panel material is; 255 keeps `#CC202127`, lower shows more of the backdrop */
-    const val PANEL_ALPHA = 255
+    const val PANEL_ALPHA = 200
     /** how opaque every key surface is; 255 keeps the alphas above, lower shows more of the backdrop */
     const val KEY_ALPHA = 255
     /** how strongly an extra dim layer sits between the background image and the panel; 0 = none */
     const val SCRIM_INTENSITY = 0
     // ---- soft shading ---------------------------------------------------------------------------
-    /** the soft darkening that falls off from the lower edge of the panel and of every keycap */
-    const val EDGE_SHADE = 0x33000000
-    /** the faint highlight along the top inside edge of every keycap */
-    const val TOP_HIGHLIGHT = 0x2BFFFFFF
+    /** the soft darkening that falls off from the lower edge of the panel */
+    const val PANEL_EDGE_SHADE = 0x33000000
+    /** the darkening at the lower edge of a keycap: 0 leaves the key fill flat, which is the design */
+    const val KEY_EDGE_SHADE = 0
+    /** the faint hairline along the top inside edge of every keycap */
+    const val KEY_TOP_HIGHLIGHT = 0x1FFFFFFF
     /** corner radius of a keycap, in dp: keys, popup keys and emoji keys all use it */
     const val KEY_RADIUS_DP = 9f
     /** corner radius of the top corners of the panel, in dp */
@@ -97,10 +99,11 @@ object Ios27Palette {
     /** the action key with [KEY_ALPHA] applied */
     val action: Int get() = ACTION.scaledAlpha(KEY_ALPHA)
 
-    /** the shading overlay for keys and panel, described once and used by both */
+    /** the shading for keys and panel, described once and used by both */
     val shading = SurfaceShading(
-        edgeShade = EDGE_SHADE,
-        topHighlight = TOP_HIGHLIGHT,
+        keyEdgeShade = KEY_EDGE_SHADE,
+        panelEdgeShade = PANEL_EDGE_SHADE,
+        keyTopHighlight = KEY_TOP_HIGHLIGHT,
         keyCornerRadiusDp = KEY_RADIUS_DP,
         panelTopCornerRadiusDp = PANEL_RADIUS_DP
     )

@@ -43,7 +43,7 @@ are written the way the design writes them — as ARGB, with the opacity inside 
 | `PANEL` | `#CC202127` | the panel — and the suggestion strip, which is part of the same slab |
 | `KEY` | `#665B5F68` | character keys and the spacebar |
 | `PRESSED` | `#997D828D` | any key surface while it is held down |
-| `MODIFIER` | `#44333842` | functional keys: shift, delete, globe, mode keys |
+| `MODIFIER` | `#992B2D35` | functional keys: shift, delete, globe, mode keys, `?123`, comma, period |
 | `ACTION` | `#FF626570` | the action key: enter, search, done, send |
 | `CHARACTER` | `#FFF5F5F7` | key letters and suggestion text |
 | `SECONDARY_ICON` | `#B8C0C9` | corner hints, toolbar icons, spacebar label |
@@ -54,12 +54,12 @@ written":
 
 | Scalar | Default | Effect |
 | --- | --- | --- |
-| `PANEL_ALPHA` | 255 | how opaque the panel material is; lower shows more of the backdrop |
+| `PANEL_ALPHA` | 200 | how opaque the panel material is; lower shows more of the backdrop |
 | `KEY_ALPHA` | 255 | how opaque every key surface is |
 | `SCRIM_INTENSITY` | 0 | an extra dim layer between the background image and the panel; 0 = off |
 
-`EDGE_SHADE`, `TOP_HIGHLIGHT`, `KEY_RADIUS_DP` (9) and `PANEL_RADIUS_DP` (28) describe the soft
-shading and the corner radii, see *Soft edges*.
+`PANEL_EDGE_SHADE`, `KEY_EDGE_SHADE`, `KEY_TOP_HIGHLIGHT`, `KEY_RADIUS_DP` (9) and
+`PANEL_RADIUS_DP` (28) describe the soft shading and the corner radii, see *Soft edges*.
 
 The palette is applied through the theme's colour slots, so it reaches everything at once, without
 each surface needing its own hook: the panel, the keys, the spacebar, the suggestion strip and its
@@ -127,23 +127,25 @@ platform facts rule out the obvious ways of doing that on Android:
   only multiply (for glass keys: only replace) that colour. It can never produce anything lighter
   than the surface, so a baked-in highlight renders as the key colour itself and disappears.
 
-So the shading is a **layer of its own**, drawn over the surface and never tinted — which is what
-the brief asked for and what makes both halves possible:
+So the shading is a **layer of its own**, drawn over the surface and never tinted. Keys and the
+panel want different things from it, so there are two shapes:
 
-- `SurfaceShading` (`latin/common/Colors.kt`) holds the two colours and the corner radii, and
-  builds the layer as one `GradientDrawable`: a faint `TOP_HIGHLIGHT` at the top edge and a soft
-  `EDGE_SHADE` towards the bottom edge, clipped to the surface's own rounded corners.
-- `KeyboardView` builds one such layer per theme in its constructor (like the key background
+- `SurfaceShading` (`latin/common/Colors.kt`) holds the colours and the corner radii. For the
+  **panel** it builds one `GradientDrawable` — a soft `PANEL_EDGE_SHADE` falling off from the lower
+  edge, clipped to the panel's own rounded corners — and the panel gets it as a layer of its own
+  composition.
+- A **key** is flat: its surface is one translucent fill, and the design puts only a faint hairline
+  inside its top edge. `KEY_EDGE_SHADE` is therefore `0`, and the key's fill drawable is a plain
+  white tinted by the key colour (see *How the gradients work*). The hairline is one design pixel
+  tall, which a `GradientDrawable` cannot draw — it spreads its stops over the whole surface, which
+  is the bevel the design removes — so it is `TopEdgeHighlightDrawable`: a `KEY_TOP_HIGHLIGHT`
+  rectangle, clipped to the key's rounded corners so it never pokes out beside them.
+- `KeyboardView` builds the key layer once per theme in its constructor (like the key background
   drawables themselves) and draws it over every keycap whose surface really is that rounded
   rectangle: character, functional, action and spacebar keys, popup keys, the more-suggestions
   words, and the symbols/numbers and alternate-language layouts. It skips the surfaces that are a
   different shape altogether — the emoji grid, which has no key surface at all, and the *oval*
   action key of the long-press popup.
-- The panel gets the same layer as part of its own composition, without the highlight.
-
-The shape of the falloff is fixed: `GradientDrawable` spaces three colour stops evenly and offers
-nothing finer, so the highlight fades out by the middle of a surface and the darkening fades in
-from there. What the palette tunes is how strong each end is (`EDGE_SHADE`, `TOP_HIGHLIGHT`).
 
 ## Geometry: what was changed and what was left to the user's settings
 
@@ -247,41 +249,41 @@ the mock, for **this theme only**:
   ported: a plain mic there would claim voice input works. It keeps the Material glyph until
   someone draws the slashed variant.
 
-## How the gradients work
+## How the key fill is painted
 
 `Colors` paints every key by tinting a drawable with a single colour using
-`PorterDuff.Mode.MULTIPLY` (see `setColor` in `latin/common/Colors.kt`). A normal
-two-tone gradient would therefore be flattened to one flat colour.
+`PorterDuff.Mode.MULTIPLY` (see `setColor` in `latin/common/Colors.kt`). MULTIPLY *multiplies* rather
+than replaces, so a **greyscale** image baked into a drawable is scaled by the tint. That is how a
+drawable can carry a two-tone ramp, and why any ramps live in the drawables as greyscale values
+rather than as the design's colours.
 
-It survives anyway, because MULTIPLY *multiplies* rather than replaces: a **greyscale
-ramp** baked into the drawable is scaled by the tint. So each key drawable carries a
-white-to-grey ramp, and the theme colour becomes the light end of the rendered gradient:
+The design's key is **flat** — one translucent fill, its shape coming only from the radius and the
+hairline (see *Soft edges*) — so the key drawables are flat white and a tint alone decides the key
+colour:
 
 ```
-drawable   #FFFFFF  ──────────────►  #CCCCCC
-tint       #56585F  ×              ×  #56585F
-rendered   #56585F  ──────────────►  #45474D      <- the design's two stops
+drawable   #FFFFFF
+tint       #56585F  ×
+rendered   #56585F          <- the design's key colour, one flat fill
 ```
 
-The suggestion strip uses the same trick with three stops: white (1.0), `#A8A8A8` (0.66) at
-45% height, then `#DEDEDE` (0.87). Tinting with `#2c2f38` reproduces the design's
-`#454957 → #202127 → #27282e` ramp.
+The suggestion strip is the one surface that still carries a ramp, and only while no background
+image is set (with an image, the strip's own background is transparent so the image shows through).
+It uses three stops: white (1.0), `#A8A8A8` (0.66) at 45% height, then `#DEDEDE` (0.87). Tinting
+with `#2c2f38` reproduces the design's `#454957 → #202127 → #27282e` ramp.
 
-That ramp only ever shows on the suggestion strip, and only while no background image is
-set (with an image, the strip's own background is transparent so the image shows through).
-The panel *behind the keys* is not drawn from `keyboard_background_lxx_base_border.xml` at
-all: `KeyboardView.setKeyboard` replaces the main keyboard view's XML background with
-`Color.TRANSPARENT` ("actual background color/drawable is applied to main_keyboard_frame"),
-and `InputView` gives `main_keyboard_frame` a white background carrying the `background`
-colour as a `MODULATE` filter. So the panel behind the keys is one flat `#2c2f38` — or the
-user's background image, when one is set — and only the strip carries a ramp. The
-`keyboard_background_lxx_base_border.xml` restyle still matters for the emoji *search*
-keyboard, which does draw that drawable.
+The panel *behind the keys* is not drawn from `keyboard_background_lxx_base_border.xml` at all:
+`KeyboardView.setKeyboard` replaces the main keyboard view's XML background with
+`Color.TRANSPARENT` ("actual background color/drawable is applied to main_keyboard_frame"), and
+`InputView` gives `main_keyboard_frame` a white background carrying the `background` colour as a
+`MODULATE` filter. So the panel behind the keys is one flat colour — or the user's background image,
+composited under the panel colour, when one is set. The `keyboard_background_lxx_base_border.xml`
+restyle still matters for the emoji *search* keyboard, which does draw that drawable.
 
 This is why the drawables hold greyscale values and not the design's colours: **changing a
 theme's colours must not require editing the drawables, and editing a drawable changes
-every theme.** If you want to retune the ramp, edit the greyscale stops; if you want to
-retune the hue, edit the palette in `KeyboardTheme.kt`.
+every theme.** If you want to retune the strip's ramp, edit its greyscale stops; if you want to
+retune the hue of anything, edit the palette in `KeyboardTheme.kt`.
 
 ## Glass: real translucency for this theme only
 
@@ -313,9 +315,9 @@ Alphas used — these are the palette's own, and `KEY_ALPHA` scales them:
 | --- | --- |
 | character keys / spacebar | `0x66` (`#665B5F68`) |
 | character keys, pressed | `0x99` (`#997D828D`) |
-| functional keys | `0x44` (`#44333842`) |
+| functional keys | `0x99` (`#992B2D35`) |
 | action key | `0xFF` (`#FF626570`, opaque by design) |
-| panel | `0xCC` (`#CC202127`) |
+| panel | `0xA0` (`#CC202127` scaled by `PANEL_ALPHA` 200) |
 
 ### What you get, and what you give up
 
@@ -328,19 +330,16 @@ part of the panel. The text stays fully opaque, because the translucency lives i
 
 Trade-offs, stated plainly:
 
-1. **The baked colour ramps stop being visible on glassed surfaces.** `SRC_IN` takes only
-   the tint's colour, so a key becomes one flat translucent colour per state instead of a
-   light-to-dark ramp. The design's key ramp is subtle and its *alpha* ramp is kept (via the
-   pressed state), but the RGB ramp on keys is gone. This is unavoidable without giving this
-   one theme its own copies of the key drawables and selecting them in code — the drawables
-   are chosen by the keyboard *style*, which is shared with every other theme, so an
-   alpha-ramped drawable there would flatten every other theme's keys instead.
-2. **Panel without a background image.** With no image the panel is `#CC202127` on its own,
-   over the IME window's background — a platform colour this app does not declare and cannot
-   predict. That is the design's panel colour as specified, and it is what the palette asks for,
-   but the design assumes the backdrop is the user's (pre-blurred) image: set one, or raise
-   `PANEL_ALPHA` to 255-value opaque material, or add a `SCRIM_INTENSITY`, if the panel reads
-   wrong against a particular backdrop.
+1. **Keys are flat by design.** `SRC_IN` takes only the tint's colour, so each key is one
+   translucent colour per state. That now matches the design instead of fighting it: the key
+   drawables are flat white (see *How the key fill is painted*), the bevel is gone, and the only
+   thing drawn on top of a key is the faint top hairline. Bringing an RGB ramp back to keys would
+   mean editing a drawable that every other theme shares, so it is deliberately not done.
+2. **Panel without a background image.** With no image the panel is `#CC202127` scaled by
+   `PANEL_ALPHA` (200, i.e. `#A0202127`), over the IME window's background — a platform colour this
+   app does not declare and cannot predict. The design assumes the backdrop is the user's
+   (pre-blurred) image: set one, or raise `PANEL_ALPHA` towards 255 for more opaque material, or add
+   a `SCRIM_INTENSITY`, if the panel reads wrong against a particular backdrop.
 3. **The panel dims the image.** The panel colour is painted over the image, so the image is
    visible but dimmed (that is the "frosted slab" the design shows). To see the image at full
    strength, raise the panel colour's alpha towards `#00202127` — the single entry `PANEL`.
@@ -354,14 +353,23 @@ Trade-offs, stated plainly:
    dependence.
 
 To go back to fully opaque keys, set `KEY_ALPHA` to 255 and the alphas inside `KEY`,
-`PRESSED`, `MODIFIER` and `ACTION` to `FF`; to go back to an opaque panel, set `PANEL`'s alpha
-to `FF`. Everything is in `Ios27Palette`.
+`PRESSED`, `MODIFIER` and `ACTION` to `FF`; to go back to a fully opaque panel, set the alpha inside
+`PANEL` to `FF` and `PANEL_ALPHA` to 255. Everything is in `Ios27Palette`.
 
 ## Background image
 
 HeliBoard has its own *Appearance → Keyboard background image* setting, and this theme uses
 it as its material: with an image set the panel **is** that image, and the keys are
 translucent panes over it (see *Glass* above).
+
+**The navigation bar follows the panel's bottom edge.** The system draws the navigation bar in the
+strip just below the panel, painted with the colour the IME window declares. Left at the flat panel
+colour it reads as a seam against the image, so when an image is set the theme paints it with the
+average colour of the image's bottom row, composited under the panel colour exactly as the panel
+itself is (`bottomRowAverage` in `latin/common/Colors.kt`, fed into `navBar`). Without an image the
+bar keeps the flat panel colour, and every other theme is untouched. This is a colour match, not a
+true extension of the image under the bar: an IME window ends at the navigation bar and cannot draw
+behind it.
 
 **Where the file goes.** The picker copies whatever you choose into *device-protected* app
 storage, under these four names:

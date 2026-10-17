@@ -6,8 +6,12 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.content.res.TypedArray
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PixelFormat
 import android.graphics.PorterDuff
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
@@ -430,36 +434,100 @@ data class GlassAlphas(
  * is therefore also where the "soft edge" with no hard border comes from.
  */
 data class SurfaceShading(
-    /** the colour the lower edge falls off into */
-    val edgeShade: Int,
-    /** the hairline highlight along the top inside edge (keys only) */
-    val topHighlight: Int,
+    /** how dark a key's lower edge falls off; 0 leaves the key fill flat, which is what the design wants */
+    val keyEdgeShade: Int,
+    /** the colour the panel's lower edge falls off into */
+    val panelEdgeShade: Int,
+    /** the hairline highlight along the top inside edge of a key */
+    val keyTopHighlight: Int,
     /** corner radius of a keycap, in dp: keys, popup keys and emoji keys all use it */
     val keyCornerRadiusDp: Float,
     /** corner radius of the top corners of the panel, in dp */
     val panelTopCornerRadiusDp: Float,
 ) {
     /**
-     * The overlay for a surface whose corners [cornerRadiiPx] gives one radius each -- top-left,
-     * top-right, bottom-right, bottom-left, clockwise.
+     * The overlay for the *panel*: its lower edge falls off into [panelEdgeShade]. Keys are not shaded
+     * with it -- the design keeps them flat -- they get [keyShading] instead.
      *
      * [GradientDrawable] does not take one radius per corner: it wants every corner doubled into an
      * x and a y radius, eight values in total, and hands the array straight to
      * [android.graphics.Path.addRoundRect], which throws when it is shorter. Expanding the four
      * corners happens here, where that contract lives, so callers keep saying one radius per corner.
-     *
-     * [GradientDrawable] spaces three colour stops evenly and offers nothing finer, so the *shape*
-     * of the falloff is fixed: the top highlight fades out by the middle of the surface and the edge
-     * darkening fades in from there. What the palette tunes is how strong each end of it is.
      */
-    fun overlay(cornerRadiiPx: FloatArray, withTopHighlight: Boolean) = GradientDrawable(
+    fun panelOverlay(cornerRadiiPx: FloatArray) = GradientDrawable(
         GradientDrawable.Orientation.TOP_BOTTOM,
-        intArrayOf(if (withTopHighlight) topHighlight else Color.TRANSPARENT, Color.TRANSPARENT, edgeShade)
+        intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT, panelEdgeShade)
     ).apply {
         shape = GradientDrawable.RECTANGLE
         // a corner that is a circle has the same x and y radius
-        cornerRadii = FloatArray(8) { i -> cornerRadiiPx.getOrElse(i / 2) { 0f } }
+        cornerRadii = eightRadii(cornerRadiiPx)
     }
+
+    /**
+     * The shading for a *key*: its flat fill plus, when the palette asks for one, the faint hairline
+     * along its top inside edge. The hairline is drawn by [TopEdgeHighlightDrawable] rather than by a
+     * [GradientDrawable], because a gradient can only spread three colour stops evenly over the whole
+     * surface, and spreading the highlight over half a keycap is exactly the bevel the design removes.
+     * [keyEdgeShade] is honoured too, so a future theme can bring the falloff back; it is 0 today.
+     */
+    fun keyShading(cornerRadiusPx: Float, density: Float): Drawable {
+        val highlight = TopEdgeHighlightDrawable(keyTopHighlight, cornerRadiusPx, density)
+        if (keyEdgeShade == 0) return highlight
+        val edge = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT, keyEdgeShade)
+        ).apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadii = eightRadii(floatArrayOf(cornerRadiusPx, cornerRadiusPx, cornerRadiusPx, cornerRadiusPx))
+        }
+        return LayerDrawable(arrayOf(edge, highlight))
+    }
+
+    private fun eightRadii(cornerRadiiPx: FloatArray) =
+        FloatArray(8) { i -> cornerRadiiPx.getOrElse(i / 2) { 0f } }
+}
+
+/**
+ * REA fork: the faint hairline along the top inside edge of a keycap.
+ *
+ * It is one design pixel tall, so it can not be a [GradientDrawable]: a gradient spreads its stops
+ * over the whole surface. Drawing it clipped to the key's rounded corners keeps it from poking out
+ * beside them, which a plain rectangle would do.
+ */
+private class TopEdgeHighlightDrawable(
+    colour: Int,
+    private val cornerRadiusPx: Float,
+    density: Float,
+) : Drawable() {
+    /** one design pixel, and every length in the design maps to dp */
+    private val heightPx = density
+    private val paint = Paint().apply {
+        color = colour
+        isAntiAlias = true
+    }
+    private val path = Path()
+
+    override fun draw(canvas: Canvas) {
+        val width = bounds.width().toFloat()
+        path.reset()
+        path.addRoundRect(0f, 0f, width, bounds.height().toFloat(),
+            cornerRadiusPx, cornerRadiusPx, Path.Direction.CW)
+        val save = canvas.save()
+        canvas.clipPath(path)
+        canvas.drawRect(0f, 0f, width, heightPx, paint)
+        canvas.restoreToCount(save)
+    }
+
+    override fun setAlpha(alpha: Int) {
+        paint.alpha = alpha
+    }
+
+    override fun setColorFilter(colorFilter: ColorFilter?) {
+        paint.colorFilter = colorFilter
+    }
+
+    @Suppress("DEPRECATION")
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }
 
 class DefaultColors (
@@ -572,7 +640,13 @@ class DefaultColors (
             keyboardBackground = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(background, darkerBackground))
             backgroundSetupDone = true
         } else {
-            navBar = background
+            // REA fork: a theme that lays a translucent panel over a user background image also owns
+            // the navigation bar, which the system draws immediately below the panel. Left at the
+            // flat panel colour the bar reads as a seam against the image, so it is painted with the
+            // colour of the panel's bottom row: the image's bottom row, composited under the panel
+            // colour exactly as the panel is. Every other theme keeps the flat colour.
+            val panelBottom = if (panelOverImage != null) keyboardBackground?.let(::bottomRowAverage) else null
+            navBar = if (panelBottom == null) background else ColorUtils.compositeColors(background, panelBottom)
         }
 
         adjustedBackgroundFilter = colorFilter(adjustedBackground)
@@ -848,6 +922,31 @@ private fun activatedStateList(activated: Int, normal: Int): ColorStateList {
 }
 
 /**
+ * REA fork: the average colour of the bottom row of a background image, or null when there is no
+ * image to average. Alpha is the weight, so a translucent pixel contributes proportionally less; the
+ * result is opaque. It exists so the navigation bar can be painted with the colour the panel ends on.
+ */
+private fun bottomRowAverage(image: Drawable): Int? {
+    val bitmap = (image as? BitmapDrawable)?.bitmap ?: return null
+    if (bitmap.width <= 0 || bitmap.height <= 0) return null
+    val row = IntArray(bitmap.width)
+    bitmap.getPixels(row, 0, bitmap.width, 0, bitmap.height - 1, bitmap.width, 1)
+    var alpha = 0L
+    var red = 0L
+    var green = 0L
+    var blue = 0L
+    for (pixel in row) {
+        val a = Color.alpha(pixel)
+        alpha += a
+        red += Color.red(pixel).toLong() * a
+        green += Color.green(pixel).toLong() * a
+        blue += Color.blue(pixel).toLong() * a
+    }
+    if (alpha == 0L) return null
+    return Color.argb(255, (red / alpha).toInt(), (green / alpha).toInt(), (blue / alpha).toInt())
+}
+
+/**
  * Rasterize a user background image to the exact size of the keyboard panel [view], or return null
  * if the panel can not use it. Null means "use the flat panel color for now" and happens when:
  *  - the panel is not laid out yet. A panel-sized bitmap is all we need, so rasterizing before the
@@ -897,7 +996,7 @@ private fun panelSurface(
     layers.add(ColorDrawable(panelColour))
     shading?.let {
         val radius = it.panelTopCornerRadiusDp * view.resources.displayMetrics.density
-        layers.add(it.overlay(floatArrayOf(radius, radius, 0f, 0f), withTopHighlight = false))
+        layers.add(it.panelOverlay(floatArrayOf(radius, radius, 0f, 0f)))
     }
     return LayerDrawable(layers.toTypedArray())
 }
