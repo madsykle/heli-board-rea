@@ -42,7 +42,7 @@ are written the way the design writes them — as ARGB, with the opacity inside 
 | --- | --- | --- |
 | `PANEL` | `#CC202127` | the panel — and the suggestion strip, which is part of the same slab |
 | `KEY` | `#80707072` | character keys and the spacebar |
-| `PRESSED` | `#997D828D` | any key surface while it is held down |
+| `PRESSED` | `#99858587` | any key surface while it is held down |
 | `MODIFIER` | `#66505052` | functional keys: shift, delete, globe, mode keys, `123`, comma, period |
 | `ACTION` | = `MODIFIER` | the action key: enter, search, done, send |
 | `POPUP_KEY` | `#FF68686B` | the long-press popup, panel and keys alike, and the key preview bubble |
@@ -78,13 +78,14 @@ the one thing a tint cannot draw.
 
 ### Theme-local overrides
 
-Three small hooks exist so this theme can differ from HeliBoard's hardcoded behaviour
-without changing any other theme. All three are `null`/`true` by default, so a theme that
+A handful of hooks exist so this theme can differ from HeliBoard's hardcoded behaviour
+without changing any other theme. All of them are `null`/`true`/`false` by default, so a theme that
 does not pass them behaves exactly as upstream:
 
 - `pressedKeyColor` — HeliBoard computes a pressed colour by moving the resting colour one
   small step (`brightenOrDarken(colour, true)`), which is a much smaller jump than the
-  design's. This theme states the palette's `PRESSED` (`#997D828D`), one large step lighter
+  design's. This theme states the palette's `PRESSED` (`#99858587`, the keys' own neutral, one
+  large step lighter
   than any resting key, and uses it for character, functional, spacebar **and** action keys,
   because the design gives every key family the same pressed colour (its
   `.utility`/`.return`/`.space` rules never override `.key:active`). It is applied to the
@@ -108,6 +109,15 @@ does not pass them behaves exactly as upstream:
   it, and the ratio is taken from the strip height rather than written as a size, so the rule follows
   a changed strip height (landscape, or a different style) by itself. `null` keeps the drawable's own
   height (24dp).
+- `toolbarToggleGlyphColor` — HeliBoard draws the strip's toolbar toggle (the chevron at the strip's
+  edge) as a chevron on a filled circle: the *circle* is the style's little vector, tinted with
+  `doubleAdjustedBackground`, and the chevron is `TOOL_BAR_EXPAND_KEY`. A theme that states this
+  colour gets the bare glyph instead — the disc is dropped *after* the style's own tinting (so the
+  drawable copy that the toolbar keys share keeps the state it has always had) and the chevron is
+  painted in the stated colour with the same filter. Here that is `CHARACTER` at 60%
+  (`TOOLBAR_TOGGLE_ALPHA` 153). The key is a square fixed in code and its listener is untouched, so
+  the touch target and the behaviour do not change. `null` keeps the disc, as every other theme has
+  it.
 - `popupKeysBackground`, `popupPreviewBackground`, `popupPanelBackground` — long-press popups and
   the more-suggestions popup are painted from a *brightened variant of the panel* upstream, which
   would have made them out-of-palette panels rather than keys. This theme states one colour for all
@@ -370,10 +380,11 @@ Alphas used — these are the palette's own, and `KEY_ALPHA` scales them:
 | Surface | Alpha (`KEY_ALPHA = 255`) |
 | --- | --- |
 | character keys / spacebar | `0x80` (`#80707072`) |
-| character keys, pressed | `0x99` (`#997D828D`) |
+| character keys, pressed | `0x99` (`#99858587`) |
 | functional keys | `0x66` (`#66505052`) |
 | action key | `0x66` (`#66505052`, the functional colour: the bottom row is one material) |
 | popup — panel, keys, key preview | `0xFF` (`#FF68686B`, opaque: nothing shows through the popup) |
+| strip's toolbar toggle glyph | `0x99` (`#F5F5F7` scaled by `TOOLBAR_TOGGLE_ALPHA` 153) |
 | panel | `0xA0` (`#CC202127` scaled by `PANEL_ALPHA` 200) |
 
 ### What you get, and what you give up

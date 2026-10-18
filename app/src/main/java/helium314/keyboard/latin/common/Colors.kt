@@ -87,6 +87,9 @@ interface Colors {
      *  lets the long-press panel sit on the key itself, so nothing connects the two. False keeps
      *  upstream's preview: a tail that reaches down to the key, with the panel aligned to it. */
     val previewBubbleAboveKey: Boolean get() = false
+    /** REA fork: the colour the strip's toolbar toggle glyph is drawn in when a theme wants that
+     *  toggle as a bare glyph, with no disc behind it. Null keeps the style's disc and its glyph. */
+    val toolbarToggleGlyphColor: Int? get() = null
     val accentShiftedIcon: Boolean get() =
         Settings.getCurrentContext().prefs().getBoolean(Settings.PREF_ACCENT_SHIFTED_ICON, Defaults.PREF_ACCENT_SHIFTED_ICON)
 
@@ -102,6 +105,13 @@ interface Colors {
 
     /** set a foreground color to the [view] */
     fun setColor(view: ImageView, color: ColorType)
+
+    /** REA fork: set an explicit foreground colour on the [view], for a theme that paints an icon
+     *  from its own palette instead of through a [ColorType]. The filter is the one [setColor] uses,
+     *  so a themed icon and a palette-painted one are tinted the same way. */
+    fun setColor(view: ImageView, color: Int) {
+        view.colorFilter = colorFilter(color)
+    }
 
     /** set a background to the [view], may replace or adjust existing background */
     fun setBackground(view: View, color: ColorType)
@@ -663,12 +673,15 @@ class DefaultColors (
     private val popupPanelBackground: Int? = null,
     /** REA fork: true draws the preview as a bubble that stops at the key's top edge (see [Colors.previewBubbleAboveKey]) */
     private val previewAboveKey: Boolean = false,
+    /** REA fork: colour of the strip's toolbar toggle glyph, drawn without the style's disc (null = keep the disc) */
+    private val toolbarToggleGlyph: Int? = null,
 ) : Colors {
     override val suggestionsDivider: Int? get() = dividerColor
     override val suggestionsDividerHeightRatio: Float? get() = dividerHeightRatio
     override val symbolKeyLabel: String? get() = symbolLabel
     override val showMoreSuggestionsHint: Boolean get() = moreSuggestionsHint
     override val previewBubbleAboveKey: Boolean get() = previewAboveKey
+    override val toolbarToggleGlyphColor: Int? get() = toolbarToggleGlyph
     override val surfaceShading: SurfaceShading? get() = shading
     /** REA fork: only a panel that actually carries a background image wants to reach under the bar */
     override val panelUnderNavigationBar: Boolean get() = panelOverImage != null && keyboardBackground != null

@@ -60,7 +60,7 @@ object Ios27Palette {
     /** character keys and the spacebar */
     val KEY = 0x80707072.toInt()
     /** any key surface while it is held down */
-    val PRESSED = 0x997D828D.toInt()
+    val PRESSED = 0x99858587.toInt()
     /** functional keys: shift, delete, `123`, comma, period, globe */
     val MODIFIER = 0x66505052.toInt()
     /** the action key: enter, search, done, send — the modifier's own colour, there is no lighter tier */
@@ -82,6 +82,9 @@ object Ios27Palette {
     const val KEY_ALPHA = 255
     /** how strongly an extra dim layer sits between the background image and the panel; 0 = none */
     const val SCRIM_INTENSITY = 0
+    /** how opaque the strip's toolbar toggle glyph is; 255 keeps the character colour, the design
+     *  wants a quiet icon: 153 is 60% of it */
+    const val TOOLBAR_TOGGLE_ALPHA = 153
     // ---- soft shading ---------------------------------------------------------------------------
     /** the soft darkening that falls off from the lower edge of the panel */
     const val PANEL_EDGE_SHADE = 0x33000000
@@ -115,6 +118,9 @@ object Ios27Palette {
     val action: Int get() = ACTION.scaledAlpha(KEY_ALPHA)
     /** a popup key, or a key preview, with [KEY_ALPHA] applied */
     val popupKey: Int get() = POPUP_KEY.scaledAlpha(KEY_ALPHA)
+    /** the strip's toolbar toggle: the character colour, quieter than the words next to it, and —
+     *  unlike upstream — with no disc behind the glyph */
+    val toolbarToggle: Int get() = CHARACTER.scaledAlpha(TOOLBAR_TOGGLE_ALPHA)
 
     /** the shading for keys and panel, described once and used by both */
     val shading = SurfaceShading(
@@ -587,7 +593,9 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     popupKeysBackground = Ios27Palette.popupKey,
                     popupPreviewBackground = Ios27Palette.popupKey,
                     popupPanelBackground = Ios27Palette.popupKey,
-                    previewAboveKey = Ios27Palette.PREVIEW_BUBBLE_ABOVE_KEY
+                    previewAboveKey = Ios27Palette.PREVIEW_BUBBLE_ABOVE_KEY,
+                    // the strip's toolbar toggle is a bare glyph, not a glyph on a filled disc
+                    toolbarToggleGlyph = Ios27Palette.toolbarToggle
                 )
                 else -> { // user-defined theme
                     val colorSettings = readUserColors(prefs, themeName)
