@@ -602,8 +602,8 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     toolbarToggleGlyph = Ios27Palette.toolbarToggle,
                     // the preview bubble is sized from the key it previews, not from the preview
                     // style's 35dp drawable, which is shared with every other theme
-                    keyPreviewWidthRatio = Ios27Palette.PREVIEW_WIDTH_RATIO,
-                    keyPreviewHeightRatio = Ios27Palette.PREVIEW_HEIGHT_RATIO
+                    previewWidthRatio = Ios27Palette.PREVIEW_WIDTH_RATIO,
+                    previewHeightRatio = Ios27Palette.PREVIEW_HEIGHT_RATIO
                 )
                 else -> { // user-defined theme
                     val colorSettings = readUserColors(prefs, themeName)
