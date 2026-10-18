@@ -18,4 +18,17 @@
     <string name="sliding_key_input_preview_summary" translatable="false">Display visual cue while sliding from Shift or Symbol keys</string>
     <!-- Title of the settings group for dumping dictionary files that have been created on the device [CHAR LIMIT=35] -->
     <string name="prefs_dump_dynamic_dicts" translatable="false">Dump dictionary</string>
+
+    <!-- Labs build only: entry in advanced settings and the labs screens (REA fork) -->
+    <string name="labs_settings_title" translatable="false">Labs</string>
+    <string name="labs_settings_summary" translatable="false">Experimental features and counters. Labs builds only.</string>
+    <string name="labs_section_typing" translatable="false">Typing</string>
+    <string name="labs_predicted_key_boost" translatable="false">Predicted key boost</string>
+    <string name="labs_predicted_key_boost_summary" translatable="false">Make the predicted next letter easier to hit. Taps only; drags and gestures are unaffected.</string>
+    <string name="labs_section_counters" translatable="false">Counters (in memory)</string>
+    <string name="labs_counter_total_taps" translatable="false">Total taps</string>
+    <string name="labs_counter_boosted_taps" translatable="false">Boost changed the key</string>
+    <string name="labs_counter_boosted_deleted" translatable="false">Boosted taps deleted within 1.5 s</string>
+    <string name="labs_counter_plain_deleted" translatable="false">Unboosted taps deleted within 1.5 s</string>
+    <string name="labs_counter_reset" translatable="false">Reset counters</string>
 </resources>

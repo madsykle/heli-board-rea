@@ -85,6 +85,7 @@ fun AdvancedSettingsScreen(
         SettingsWithoutKey.BACKUP_RESTORE,
         if (BuildConfig.DEBUG || prefs.getBoolean(DebugSettings.PREF_SHOW_DEBUG_SETTINGS, Defaults.PREF_SHOW_DEBUG_SETTINGS))
             SettingsWithoutKey.DEBUG_SETTINGS else null,
+        if (BuildConfig.BUILD_TYPE == "labs") SettingsWithoutKey.LABS else null,
         R.string.settings_category_experimental,
         Settings.PREF_EMOJI_MAX_SDK,
         Settings.PREF_URL_DETECTION,
@@ -280,7 +281,16 @@ fun createAdvancedSettings(context: Context) = listOf(
     Setting(context, SettingsWithoutKey.LOAD_GESTURE_LIB, R.string.load_gesture_library, R.string.load_gesture_library_summary) {
         LoadGestureLibPreference(it)
     },
-)
+) + if (BuildConfig.BUILD_TYPE == "labs") listOf(
+    // Labs build only: experimental switches and in-memory counters.
+    Setting(context, SettingsWithoutKey.LABS, R.string.labs_settings_title, R.string.labs_settings_summary) {
+        Preference(
+            name = it.title,
+            description = it.description,
+            onClick = { SettingsDestination.navigateTo(SettingsDestination.Labs) }
+        ) { NextScreenIcon() }
+    },
+) else emptyList()
 
 @Preview
 @Composable

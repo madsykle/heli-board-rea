@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import helium314.keyboard.latin.LabsKeyBoost
 import helium314.keyboard.latin.common.LocaleUtils.constructLocale
 import helium314.keyboard.latin.settings.SettingsSubtype.Companion.toSettingsSubtype
 import helium314.keyboard.latin.settings.getTransitionAnimationScale
@@ -23,6 +24,7 @@ import helium314.keyboard.settings.screens.ColorsScreen
 import helium314.keyboard.settings.screens.DebugScreen
 import helium314.keyboard.settings.screens.DictionaryScreen
 import helium314.keyboard.settings.screens.GestureTypingScreen
+import helium314.keyboard.settings.screens.LabsScreen
 import helium314.keyboard.settings.screens.LanguageScreen
 import helium314.keyboard.settings.screens.MainSettingsScreen
 import helium314.keyboard.settings.screens.PersonalDictionariesScreen
@@ -107,6 +109,11 @@ fun SettingsNavHost(
         composable(SettingsDestination.Debug) {
             DebugScreen(onClickBack = ::goBack)
         }
+        if (LabsKeyBoost.isLabsBuild) {
+            composable(SettingsDestination.Labs) {
+                LabsScreen(onClickBack = ::goBack)
+            }
+        }
         composable(SettingsDestination.Appearance) {
             AppearanceScreen(onClickBack = ::goBack)
         }
@@ -154,6 +161,7 @@ object SettingsDestination {
     const val DataReview = "data_review" // remove when data gathering phase is done (end of 2026 latest)
     const val Advanced = "advanced"
     const val Debug = "debug"
+    const val Labs = "labs"
     const val Appearance = "appearance"
     const val Colors = "colors/"
     const val ColorsNight = "colors_night/"

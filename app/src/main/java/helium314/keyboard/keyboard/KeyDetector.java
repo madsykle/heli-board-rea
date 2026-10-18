@@ -6,6 +6,8 @@
 
 package helium314.keyboard.keyboard;
 
+import helium314.keyboard.latin.LabsKeyBoost;
+
 /**
  * This class handles key detection.
  */
@@ -76,11 +78,35 @@ public class KeyDetector {
      * @return the key that the touch point hits.
      */
     public Key detectHitKey(final int x, final int y) {
+        return detectHitKey(x, y, false);
+    }
+
+    /**
+     * Detect the key for a touch point, optionally applying the labs-only predicted-key boost.
+     *
+     * <p>The precedence rule lives here so that every caller keeps the normal rule unless it
+     * explicitly opts in (the pointer tracker does so for touch-down events only). The labs
+     * object returns null on release builds and when the Labs setting is off, so this method is
+     * identical to the two-argument version there.
+     *
+     * @param x The x-coordinate of a touch point
+     * @param y The y-coordinate of a touch point
+     * @param allowBoost whether the predicted key may take precedence
+     * @return the key that the touch point hits.
+     */
+    public Key detectHitKey(final int x, final int y, final boolean allowBoost) {
         if (mKeyboard == null) {
             return null;
         }
         final int touchX = getTouchX(x);
         final int touchY = getTouchY(y);
+
+        if (allowBoost) {
+            final Key boostedKey = LabsKeyBoost.INSTANCE.boostedKey(mKeyboard, touchX, touchY);
+            if (boostedKey != null) {
+                return boostedKey;
+            }
+        }
 
         int minDistance = Integer.MAX_VALUE;
         Key primaryKey = null;

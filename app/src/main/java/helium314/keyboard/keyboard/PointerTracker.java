@@ -29,6 +29,7 @@ import helium314.keyboard.keyboard.internal.PointerTrackerQueue;
 import helium314.keyboard.keyboard.internal.TimerProxy;
 import helium314.keyboard.keyboard.internal.TypingTimeRecorder;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
+import helium314.keyboard.latin.LabsKeyBoost;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.common.Constants;
 import helium314.keyboard.latin.common.CoordinateUtils;
@@ -133,6 +134,9 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     // The current key where this pointer is.
     private Key mCurrentKey = null;
+    // Labs-only: the predicted key that won at touch-down because of the boost, if it changed the
+    // resolution. A dispatched key unequal to this one is not counted as boosted.
+    private Key mBoostedKeyAtDown = null;
     // The position where the current key was recognized for the first time.
     private int mKeyX;
     private int mKeyY;
@@ -514,7 +518,19 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         mDownTime = eventTime;
         CoordinateUtils.set(mDownCoordinates, x, y);
         mBogusMoveEventDetector.onDownKey();
-        return onMoveToNewKey(onMoveKeyInternal(x, y), x, y);
+        final Key plainKey = onMoveKeyInternal(x, y);
+        Key key = plainKey;
+        mBoostedKeyAtDown = null;
+        if (LabsKeyBoost.INSTANCE.isActive()) {
+            // Labs-only: the boost is evaluated at touch-down and never on a move, so drags and
+            // gestures keep the normal resolution.
+            final Key boostedKey = mKeyDetector.detectHitKey(x, y, true);
+            if (boostedKey != null && boostedKey != plainKey) {
+                mBoostedKeyAtDown = boostedKey;
+                key = boostedKey;
+            }
+        }
+        return onMoveToNewKey(key, x, y);
     }
 
     private static int getDistance(final int x1, final int y1, final int x2, final int y2) {
@@ -1313,11 +1329,15 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     private void detectAndSendKey(final Key key, final int x, final int y, final long eventTime) {
         if (key == null) {
+            mBoostedKeyAtDown = null;
             callListenerOnCancelInput();
             return;
         }
 
         final int code = key.getCode();
+        // Labs-only counters (no-op on release builds); never records codes or words.
+        LabsKeyBoost.INSTANCE.onKeyDispatched(code, key == mBoostedKeyAtDown, eventTime);
+        mBoostedKeyAtDown = null;
         callListenerOnCodeInput(key, code, x, y, eventTime, false);
         callListenerOnRelease(key, code, false);
     }

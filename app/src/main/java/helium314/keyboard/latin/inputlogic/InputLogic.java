@@ -35,6 +35,7 @@ import helium314.keyboard.keyboard.KeyboardSwitcher;
 import helium314.keyboard.keyboard.emoji.RecentEmojis;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.CapsMode;
+import helium314.keyboard.latin.LabsKeyBoost;
 import helium314.keyboard.latin.dictionary.Dictionary;
 import helium314.keyboard.latin.DictionaryFacilitator;
 import helium314.keyboard.latin.dictionary.DictionaryFactory;
@@ -2178,6 +2179,8 @@ public final class InputLogic {
     // TODO: how is this different from startInput ?!
     private void resetEntireInputState(final int newSelStart, final int newSelEnd,
             final boolean clearSuggestionStrip) {
+        // Labs-only: cursor moves and recorrection abandon the composing word.
+        LabsKeyBoost.INSTANCE.clearTarget();
         final boolean shouldFinishComposition = mWordComposer.isComposingWord();
         resetComposingState(true /* alsoResetLastComposedWord */);
         if (clearSuggestionStrip) {
@@ -2498,6 +2501,8 @@ public final class InputLogic {
         // LastComposedWord#didCommitTypedWord by string equality of the remembered
         // strings.
         mLastComposedWord = mWordComposer.commitWord(commitType, chosenWord, separatorString, ngramContext);
+        // Labs-only: a committed word has no predicted next key until the strip updates again.
+        LabsKeyBoost.INSTANCE.clearTarget();
         if (DebugFlags.DEBUG_ENABLED) {
             long runTimeMillis = SystemClock.elapsedRealtime() - startTimeMillis;
             Log.d(TAG, "commitChosenWord() : " + runTimeMillis + " ms to run "
@@ -2682,6 +2687,16 @@ public final class InputLogic {
     // never need to know this.
     public int getComposingLength() {
         return mWordComposer.size();
+    }
+
+    // Labs-only predicted-key support: read-only views of the composing word. Used to match the
+    // suggestion prefix; the string is never stored outside this call.
+    public String getTypedWord() {
+        return mWordComposer.getTypedWord();
+    }
+
+    public boolean isComposingWord() {
+        return mWordComposer.isComposingWord();
     }
 
     private void paste(String packageName) {

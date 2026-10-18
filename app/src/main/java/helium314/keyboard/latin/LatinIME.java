@@ -1497,6 +1497,9 @@ public class LatinIME extends InputMethodService implements
     }
 
     private void setSuggestedWords(final SuggestedWords suggestedWords) {
+        // Labs-only: recompute the predicted key for the labs debug feature. No-op on release.
+        LabsKeyBoost.INSTANCE.onSuggestions(this, suggestedWords,
+                mInputLogic.getTypedWord(), mInputLogic.isComposingWord());
         final SettingsValues currentSettingsValues = mSettings.getCurrent();
         mInputLogic.setSuggestedWords(suggestedWords);
         // TODO: Modify this when we support suggestions with hard keyboard
