@@ -90,6 +90,12 @@ interface Colors {
     /** REA fork: the colour the strip's toolbar toggle glyph is drawn in when a theme wants that
      *  toggle as a bare glyph, with no disc behind it. Null keeps the style's disc and its glyph. */
     val toolbarToggleGlyphColor: Int? get() = null
+    /** REA fork: how wide a theme's key preview bubble is, as a multiple of the key it previews.
+     *  Null keeps the width the preview style's own drawable gives the preview view. */
+    val keyPreviewWidthRatio: Float? get() = null
+    /** REA fork: how tall a theme's key preview bubble stands above the key, as a multiple of the
+     *  key's height. Null keeps the height the preview style's own drawable gives it. */
+    val keyPreviewHeightRatio: Float? get() = null
     val accentShiftedIcon: Boolean get() =
         Settings.getCurrentContext().prefs().getBoolean(Settings.PREF_ACCENT_SHIFTED_ICON, Defaults.PREF_ACCENT_SHIFTED_ICON)
 
@@ -675,6 +681,10 @@ class DefaultColors (
     private val previewAboveKey: Boolean = false,
     /** REA fork: colour of the strip's toolbar toggle glyph, drawn without the style's disc (null = keep the disc) */
     private val toolbarToggleGlyph: Int? = null,
+    /** REA fork: width of the key preview bubble as a multiple of the key (null = the style's own size) */
+    private val previewWidthRatio: Float? = null,
+    /** REA fork: height of the key preview bubble above the key as a multiple of the key height (null = the style's own) */
+    private val previewHeightRatio: Float? = null,
 ) : Colors {
     override val suggestionsDivider: Int? get() = dividerColor
     override val suggestionsDividerHeightRatio: Float? get() = dividerHeightRatio
@@ -682,6 +692,8 @@ class DefaultColors (
     override val showMoreSuggestionsHint: Boolean get() = moreSuggestionsHint
     override val previewBubbleAboveKey: Boolean get() = previewAboveKey
     override val toolbarToggleGlyphColor: Int? get() = toolbarToggleGlyph
+    override val keyPreviewWidthRatio: Float? get() = previewWidthRatio
+    override val keyPreviewHeightRatio: Float? get() = previewHeightRatio
     override val surfaceShading: SurfaceShading? get() = shading
     /** REA fork: only a panel that actually carries a background image wants to reach under the bar */
     override val panelUnderNavigationBar: Boolean get() = panelOverImage != null && keyboardBackground != null

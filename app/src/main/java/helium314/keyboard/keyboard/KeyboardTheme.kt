@@ -105,6 +105,10 @@ object Ios27Palette {
     const val SHOW_MORE_SUGGESTIONS_HINT = false
     /** the design's key preview is a bubble above the key, and the long-press panel sits on the key */
     const val PREVIEW_BUBBLE_ABOVE_KEY = true
+    /** how wide the key preview bubble is, as a multiple of the key it previews */
+    const val PREVIEW_WIDTH_RATIO = 1.7f
+    /** how tall the key preview bubble stands above the key, as a multiple of the key's height */
+    const val PREVIEW_HEIGHT_RATIO = 1.55f
 
     /** the panel colour with [PANEL_ALPHA] applied; this is what the theme actually paints */
     val panel: Int get() = PANEL.scaledAlpha(PANEL_ALPHA)
@@ -595,7 +599,11 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     popupPanelBackground = Ios27Palette.popupKey,
                     previewAboveKey = Ios27Palette.PREVIEW_BUBBLE_ABOVE_KEY,
                     // the strip's toolbar toggle is a bare glyph, not a glyph on a filled disc
-                    toolbarToggleGlyph = Ios27Palette.toolbarToggle
+                    toolbarToggleGlyph = Ios27Palette.toolbarToggle,
+                    // the preview bubble is sized from the key it previews, not from the preview
+                    // style's 35dp drawable, which is shared with every other theme
+                    keyPreviewWidthRatio = Ios27Palette.PREVIEW_WIDTH_RATIO,
+                    keyPreviewHeightRatio = Ios27Palette.PREVIEW_HEIGHT_RATIO
                 )
                 else -> { // user-defined theme
                     val colorSettings = readUserColors(prefs, themeName)

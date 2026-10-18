@@ -63,6 +63,11 @@ public class KeyPreviewView extends TextView {
     private void setTextAndScaleX(final String text) {
         setTextScaleX(1.0f);
         setText(text);
+        if (Settings.getValues().mColors.getKeyPreviewWidthRatio() != null) {
+            // REA fork: a theme that sizes the preview bubble from the key it previews has room for
+            // the whole letter, so it must not be squeezed into the preview style's 35dp drawable.
+            return;
+        }
         if (sNoScaleXTextSet.contains(text)) {
             return;
         }

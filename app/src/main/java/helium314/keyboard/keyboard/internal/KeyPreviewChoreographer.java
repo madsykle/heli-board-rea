@@ -85,9 +85,40 @@ public final class KeyPreviewChoreographer {
     private void placeKeyPreview(Key key, KeyPreviewView keyPreviewView, KeyboardIconsSet iconsSet,
             KeyDrawParams drawParams, int fullKeyboardViewWidth, int[] originCoords) {
         keyPreviewView.setPreviewVisual(key, iconsSet, drawParams);
+        final Colors colors = Settings.getValues().mColors;
+        final boolean bubbleAboveKey = colors.getPreviewBubbleAboveKey();
+        if (bubbleAboveKey) {
+            // REA fork: this theme's preview is a bubble that stops at the top edge of the key. Its
+            // bounds always reach the bottom of the key (see previewY below), so the part below the
+            // top edge is the tail to leave unpainted. And because there is no visible tail to align
+            // to, the popup keys keyboard is placed on the key itself, which is what the geometry of
+            // the last preview must not interfere with.
+            colors.setKeyPreviewBackground(keyPreviewView, key.getHeight() - mParams.mPreviewOffset);
+            mParams.clearGeometry();
+        }
         keyPreviewView.measure(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         int previewWidth = keyPreviewView.getMeasuredWidth();
         int previewHeight = keyPreviewView.getMeasuredHeight();
+        if (bubbleAboveKey) {
+            final Float widthRatio = colors.getKeyPreviewWidthRatio();
+            final Float heightRatio = colors.getKeyPreviewHeightRatio();
+            if (widthRatio != null && heightRatio != null) {
+                // REA fork: the design sizes the bubble from the key it previews instead of from the
+                // preview style's own drawable (35dp, shared with every other theme). The view still
+                // reaches down over the key, so the clipped tail becomes its bottom padding: that is
+                // what keeps the letter in the painted part and centres it there.
+                final int tail = key.getHeight() - mParams.mPreviewOffset;
+                previewWidth = Math.round(key.getDrawWidth() * widthRatio);
+                previewHeight = Math.round(key.getHeight() * heightRatio) + tail;
+                keyPreviewView.setPadding(0, 0, 0, tail);
+                keyPreviewView.measure(
+                        View.MeasureSpec.makeMeasureSpec(previewWidth, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(previewHeight, View.MeasureSpec.EXACTLY));
+            }
+        } else {
+            colors.setBackground(keyPreviewView, ColorType.KEY_PREVIEW_BACKGROUND);
+            mParams.setGeometry(keyPreviewView);
+        }
         int keyDrawWidth = key.getDrawWidth();
         int originX = CoordinateUtils.x(originCoords);
         // The key preview is horizontally aligned with the center of the visible part of the
@@ -106,19 +137,6 @@ public final class KeyPreviewChoreographer {
         }
         boolean hasPopupKeys = (key.getPopupKeys() != null);
         keyPreviewView.setPreviewBackground(hasPopupKeys, keyPreviewPosition);
-        Colors colors = Settings.getValues().mColors;
-        if (colors.getPreviewBubbleAboveKey()) {
-            // REA fork: this theme's preview is a bubble that stops at the top edge of the key. Its
-            // bounds always reach the bottom of the key (see previewY below), so the part below the
-            // top edge is the tail to leave unpainted. And because there is no visible tail to align
-            // to, the popup keys keyboard is placed on the key itself, which is what the geometry of
-            // the last preview must not interfere with.
-            colors.setKeyPreviewBackground(keyPreviewView, key.getHeight() - mParams.mPreviewOffset);
-            mParams.clearGeometry();
-        } else {
-            colors.setBackground(keyPreviewView, ColorType.KEY_PREVIEW_BACKGROUND);
-            mParams.setGeometry(keyPreviewView);
-        }
 
         // The key preview is placed vertically above the top edge of the parent key with an
         // arbitrary offset.

@@ -64,8 +64,9 @@ written":
 
 The decisions the theme makes that are not colours are named in the same object, so the theme is
 still tunable in one place: `DIVIDER_HEIGHT_RATIO` (0.4), `SYMBOL_LABEL` (`"123"`),
-`SHOW_MORE_SUGGESTIONS_HINT` (false) and `PREVIEW_BUBBLE_ABOVE_KEY` (true). Each is described with
-its hook in *Theme-local overrides*.
+`SHOW_MORE_SUGGESTIONS_HINT` (false), `PREVIEW_BUBBLE_ABOVE_KEY` (true), `PREVIEW_WIDTH_RATIO`
+(1.7) and `PREVIEW_HEIGHT_RATIO` (1.55). Each is described with its hook in *Theme-local
+overrides*.
 
 The palette is applied through the theme's colour slots, so it reaches everything at once, without
 each surface needing its own hook: the panel, the keys, the spacebar, the suggestion strip and its
@@ -156,7 +157,7 @@ bounds always reach the bottom of the key, and the panel is placed half that pad
 so that the visible part of the preview reads as a **neck** joining the panel to the key. That neck is
 part of the Material shape, not of this design.
 
-This theme separates them, through three small hooks:
+This theme separates them, through hooks of its own:
 
 - `previewBubbleAboveKey` (true here) tells `KeyPreviewChoreographer` that the preview is a **bubble**:
   it asks `Colors.setKeyPreviewBackground(view, tail)` for a preview cut off at the key's top edge
@@ -166,9 +167,20 @@ This theme separates them, through three small hooks:
   itself, one vertical gap above it. The bubble is then covered by the panel while it is up, and on a
   plain tap the bubble is what the user sees — a rounded rectangle above the key.
 - `popupPreviewBackground` paints that bubble: a flat `POPUP_KEY` rounded rectangle at the keys'
-  `KEY_RADIUS_DP`. It is a `TailClippedSurface`, so it keeps the style drawable's size and padding —
-  the measurement and the text position are untouched, on the first press and on every reuse — and
-  only stops painting at the key's top edge.
+  `KEY_RADIUS_DP`. It is a `TailClippedSurface`: it stops painting at the key's top edge, and the
+  rounded rectangle it draws ends there, so the cut edge is rounded like the rest, while the view
+  behind it keeps reaching down over the key.
+- `keyPreviewWidthRatio` (`1.7`) and `keyPreviewHeightRatio` (`1.55`) give the bubble its size, as
+  multiples of the key it previews: `1.7 × keyDrawWidth` wide, and `1.55 × keyHeight` tall above the
+  key. Upstream sizes the preview from the preview style's own drawable — a 35dp shape whose
+  measurement every theme shares — which is why the bubble was a fixed ~105px wide and ~220px tall
+  whatever the key. This theme states the ratios instead and `KeyPreviewChoreographer` measures the
+  view exactly: width and height, centred horizontally on the key's drawn part, and moved inward at
+  the q / p edge keys so it stays on screen (the clamp upstream already had, now computed from the
+  final width). The view still reaches down over the key, so the clipped tail becomes the view's
+  bottom padding — the letter is centred in the painted part, not in the whole view — and the
+  bubble's top therefore sits exactly `1.55 × keyHeight` above the key. `null` for both keeps the
+  style's own size, as every other theme has it.
 - `popupPanelBackground` paints the panel itself: a flat `POPUP_KEY`-coloured rounded rectangle at
   `KEY_RADIUS_DP`, the *same* fill as the keys in it, instead of the style's panel — whose *drop
   shadow* (five dark layers) read as a fill darker than the panel and whose colour is the keyboard's
