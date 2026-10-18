@@ -27,6 +27,7 @@
     <string name="labs_predicted_key_boost_summary" translatable="false">Make the predicted next letter easier to hit. Taps only; drags and gestures are unaffected.</string>
     <string name="labs_section_counters" translatable="false">Counters (in memory)</string>
     <string name="labs_counter_total_taps" translatable="false">Total taps</string>
+    <string name="labs_counter_target_present" translatable="false">Taps with a target present</string>
     <string name="labs_counter_boosted_taps" translatable="false">Boost changed the key</string>
     <string name="labs_counter_boosted_deleted" translatable="false">Boosted taps deleted within 1.5 s</string>
     <string name="labs_counter_plain_deleted" translatable="false">Unboosted taps deleted within 1.5 s</string>

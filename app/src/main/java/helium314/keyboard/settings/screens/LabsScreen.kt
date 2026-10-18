@@ -43,6 +43,7 @@ fun LabsScreen(
             }
             item { PreferenceCategory(stringResource(R.string.labs_section_counters)) }
             item { CounterPreference(R.string.labs_counter_total_taps, stats.totalTaps) }
+            item { CounterPreference(R.string.labs_counter_target_present, stats.tapsWithTarget) }
             item { CounterPreference(R.string.labs_counter_boosted_taps, stats.boostedTaps) }
             item { CounterPreference(R.string.labs_counter_boosted_deleted, stats.boostedTapsDeleted) }
             item { CounterPreference(R.string.labs_counter_plain_deleted, stats.plainTapsDeleted) }

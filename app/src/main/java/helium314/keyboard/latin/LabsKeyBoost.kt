@@ -31,9 +31,9 @@ object LabsKeyBoost {
 
     // Tuning constants. Margins are fractions of the key's drawn size, capped in dp so they stay
     // modest on very large keys (tablets, split layouts).
-    const val MARGIN_WIDTH_RATIO = 0.12f
-    const val MARGIN_HEIGHT_RATIO = 0.12f
-    const val MARGIN_MAX_DP = 8f
+    const val MARGIN_WIDTH_RATIO = 0.30f
+    const val MARGIN_HEIGHT_RATIO = 0.15f
+    const val MARGIN_MAX_DP = 12f
     const val DELETE_WINDOW_MS = 1_500L
 
     val isLabsBuild: Boolean = BuildConfig.BUILD_TYPE == "labs"
@@ -41,6 +41,7 @@ object LabsKeyBoost {
     /** Aggregate counters, shown on the Labs debug screen. Never contains typed text. */
     data class Stats(
         val totalTaps: Int = 0,
+        val tapsWithTarget: Int = 0,
         val boostedTaps: Int = 0,
         val boostedTapsDeleted: Int = 0,
         val plainTapsDeleted: Int = 0,
@@ -108,7 +109,7 @@ object LabsKeyBoost {
     }
 
     /** Called once per dispatched tap (not for key repeats or cancelled gestures). */
-    fun onKeyDispatched(code: Int, wasBoosted: Boolean, eventTime: Long) {
+    fun onKeyDispatched(code: Int, wasBoosted: Boolean, targetPresent: Boolean, eventTime: Long) {
         if (!isLabsBuild) return
         synchronized(this) {
             var s = _stats.value
@@ -126,6 +127,7 @@ object LabsKeyBoost {
                     }
                 }
             } else if (Character.isLetter(code)) {
+                if (targetPresent) s = s.copy(tapsWithTarget = s.tapsWithTarget + 1)
                 if (wasBoosted) s = s.copy(boostedTaps = s.boostedTaps + 1)
                 lastTapTime = eventTime
                 lastTapBoosted = wasBoosted
