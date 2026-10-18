@@ -8,8 +8,10 @@ name: Build APK
 # permission in the merged manifest, or if OS backup was re-enabled.
 #
 # Signing: if the KEYSTORE_BASE64 secret is set, a properly signed release APK
-# is built as well, so successive builds install over each other. Without it,
-# only the debug-signed APK is produced (throwaway key -> uninstall to update).
+# and a signed "labs" variant (same key, applicationId suffix .labs, label
+# "HeliBoard Labs") are built as well, so successive builds install over each
+# other and labs can be installed next to the main app. Without it, only the
+# debug-signed APK is produced (throwaway key -> uninstall to update).
 
 on:
   push:
@@ -50,7 +52,7 @@ jobs:
       # Fails the build if a merged manifest declares INTERNET, contacts,
       # location or similar, or if android:allowBackup is not "false".
       - name: Privacy guard
-        run: ./gradlew privacyGuardDebugNoMinify privacyGuardRelease --stacktrace
+        run: ./gradlew privacyGuardDebugNoMinify privacyGuardRelease privacyGuardLabs --stacktrace
 
       - name: Decode signing keystore
         env:
@@ -99,6 +101,35 @@ jobs:
         with:
           name: heliboard-rea-release
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # Labs variant: same code, same signing key, applicationId suffix .labs,
+      # label "HeliBoard Labs". Installs next to the main app, so a build under
+      # test can be tried without touching the daily keyboard.
+      - name: Build signed Labs APK
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          REA_KEYSTORE_PATH: ${{ github.workspace }}/rea-release.jks
+          REA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          REA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          REA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleLabs --stacktrace
+
+      - name: Verify Labs APK signature
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          set -e
+          APK=$(ls app/build/outputs/apk/labs/*.apk)
+          echo "Checking $APK"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$APK"
+
+      - name: Upload Labs APK
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: heliboard-rea-labs
+          path: app/build/outputs/apk/labs/*.apk
           if-no-files-found: error
 
       - name: Upload reports on failure

@@ -63,6 +63,11 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+        create("labs") { // same as release, but installs alongside the main app (REA fork)
+            initWith(getByName("release"))
+            applicationIdSuffix = ".labs"
+            // label and clipboard provider authority are overridden in src/labs/res/values/strings.xml
+        }
         create("nouserlib") { // same as release, but does not allow the user to provide a library
             isMinifyEnabled = true
             isShrinkResources = false

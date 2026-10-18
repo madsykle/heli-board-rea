@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Labs build only (REA fork).
+
+  Overrides two strings so the labs variant is a distinct install rather than a
+  second copy of the main app:
+
+  * english_ime_name: used for both the launcher label and the IME service
+    label, so "HeliBoard" and "HeliBoard Labs" can be told apart in the IME
+    picker and in Settings.
+  * clipboard_provider_authority: the clipboard provider authority is global to
+    the device, so two installs must not share it. The main release keeps
+    com.rea.heliboard.clipprovider, unchanged.
+
+  No Java/Kotlin code is variant-specific: the authority is read from resources
+  (ClipboardHistoryEntry.kt), and everything else derives the package at runtime.
+-->
+<resources>
+    <string name="english_ime_name" translatable="false">HeliBoard Labs</string>
+    <string name="clipboard_provider_authority" translatable="false">com.rea.heliboard.labs.clipprovider</string>
+</resources>
