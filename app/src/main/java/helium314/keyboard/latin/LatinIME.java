@@ -805,6 +805,8 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onFinishInputView(final boolean finishingInput) {
+        // Labs-only: the keyboard is hiding, so write the pending counter batch now.
+        LabsKeyBoost.INSTANCE.onKeyboardHidden();
         StatsUtils.onFinishInputView();
         mHandler.onFinishInputView(finishingInput);
         mStatsUtilsManager.onFinishInputView();

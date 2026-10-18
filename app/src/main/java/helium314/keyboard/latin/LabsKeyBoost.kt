@@ -2,13 +2,23 @@
 package helium314.keyboard.latin
 
 import android.content.Context
+import android.content.SharedPreferences
+import androidx.core.content.edit
 import helium314.keyboard.keyboard.Key
 import helium314.keyboard.keyboard.Keyboard
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.common.Constants
 import helium314.keyboard.latin.utils.prefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Labs-only "predicted key boost".
@@ -22,9 +32,11 @@ import kotlinx.coroutines.flow.StateFlow
  * at touch-down only: if the touch is inside the target letter's drawn rectangle grown by a small
  * margin, the target wins even when the touch is inside a neighbouring key.
  *
- * Counters are aggregate integers kept in memory only. No typed character, word or key code is
- * ever stored or logged; the target letter is transient state and is cleared on keyboard change,
- * word commit and cursor move.
+ * Counters are aggregate integers. They are kept in memory on the touch path and persisted to
+ * SharedPreferences in batches: at most once per [FLUSH_INTERVAL_MS] while a keyboard is attached,
+ * and once when the keyboard hides. No typed character, word or key code is ever stored or logged;
+ * the target letter is transient state and is cleared on keyboard change, word commit and cursor
+ * move.
  */
 object LabsKeyBoost {
     const val PREF_KEY = "labs_predicted_key_boost"
@@ -36,6 +48,16 @@ object LabsKeyBoost {
     const val MARGIN_MAX_DP = 12f
     const val DELETE_WINDOW_MS = 1_500L
 
+    // Persisted counter values live in the same shared preferences as the Labs switch. They are
+    // aggregate integers only.
+    private const val FLUSH_INTERVAL_MS = 10_000L
+    private const val PREF_TOTAL_TAPS = "labs_count_total_taps"
+    private const val PREF_TARGET_PRESENT = "labs_count_target_present"
+    private const val PREF_BOOSTED_TAPS = "labs_count_boosted_taps"
+    private const val PREF_UNBOOSTED_TAPS = "labs_count_unboosted_taps"
+    private const val PREF_BOOSTED_DELETED = "labs_count_boosted_deleted"
+    private const val PREF_PLAIN_DELETED = "labs_count_plain_deleted"
+
     val isLabsBuild: Boolean = BuildConfig.BUILD_TYPE == "labs"
 
     /** Aggregate counters, shown on the Labs debug screen. Never contains typed text. */
@@ -43,6 +65,7 @@ object LabsKeyBoost {
         val totalTaps: Int = 0,
         val tapsWithTarget: Int = 0,
         val boostedTaps: Int = 0,
+        val unboostedTaps: Int = 0,
         val boostedTapsDeleted: Int = 0,
         val plainTapsDeleted: Int = 0,
     )
@@ -55,6 +78,15 @@ object LabsKeyBoost {
     @Volatile private var targetLetter = 0
     @Volatile private var density = 3f
 
+    @Volatile private var appContext: Context? = null
+    @Volatile private var loaded = false
+    /** True when memory holds counter changes not yet written to SharedPreferences. */
+    @Volatile private var dirty = false
+
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val writeMutex = Mutex()
+    private var flushJob: Job? = null
+
     // UI-thread-only bookkeeping for the "followed by delete" counter.
     private var lastTapTime = 0L
     private var lastTapBoosted = false
@@ -63,11 +95,41 @@ object LabsKeyBoost {
     /** True when the labs build has the setting on and a predicted key is available. */
     fun isActive(): Boolean = isLabsBuild && enabled && targetLetter != 0
 
+    /** Load the persisted counters once. Safe to call from the settings screen. */
+    fun load(context: Context) {
+        if (!isLabsBuild) return
+        appContext = context.applicationContext
+        if (loaded) return
+        synchronized(this) {
+            if (loaded) return
+            val p = context.prefs()
+            _stats.value = Stats(
+                totalTaps = p.getInt(PREF_TOTAL_TAPS, 0),
+                tapsWithTarget = p.getInt(PREF_TARGET_PRESENT, 0),
+                boostedTaps = p.getInt(PREF_BOOSTED_TAPS, 0),
+                unboostedTaps = p.getInt(PREF_UNBOOSTED_TAPS, 0),
+                boostedTapsDeleted = p.getInt(PREF_BOOSTED_DELETED, 0),
+                plainTapsDeleted = p.getInt(PREF_PLAIN_DELETED, 0),
+            )
+            dirty = false
+            loaded = true
+        }
+    }
+
     /** Called from MainKeyboardView.setKeyboard: the target belongs to the old layout. */
     fun onKeyboardChanged(context: Context) {
         if (!isLabsBuild) return
         refresh(context)
         targetLetter = 0
+        startFlushLoop()
+    }
+
+    /** Called when the input view is hidden: write the pending counter batch now. */
+    fun onKeyboardHidden() {
+        if (!isLabsBuild) return
+        flushJob?.cancel()
+        flushJob = null
+        ioScope.launch { flushLocked() }
     }
 
     /** Called after every suggestion-strip update. */
@@ -108,7 +170,10 @@ object LabsKeyBoost {
         return if (inside) key else null
     }
 
-    /** Called once per dispatched tap (not for key repeats or cancelled gestures). */
+    /**
+     * Called once per dispatched tap (not for key repeats or cancelled gestures). This runs on
+     * the touch path and only touches memory; the write is done later by [flushLocked].
+     */
     fun onKeyDispatched(code: Int, wasBoosted: Boolean, targetPresent: Boolean, eventTime: Long) {
         if (!isLabsBuild) return
         synchronized(this) {
@@ -128,7 +193,11 @@ object LabsKeyBoost {
                 }
             } else if (Character.isLetter(code)) {
                 if (targetPresent) s = s.copy(tapsWithTarget = s.tapsWithTarget + 1)
-                if (wasBoosted) s = s.copy(boostedTaps = s.boostedTaps + 1)
+                if (wasBoosted) {
+                    s = s.copy(boostedTaps = s.boostedTaps + 1)
+                } else {
+                    s = s.copy(unboostedTaps = s.unboostedTaps + 1)
+                }
                 lastTapTime = eventTime
                 lastTapBoosted = wasBoosted
                 lastTapCounted = false
@@ -137,20 +206,68 @@ object LabsKeyBoost {
                 lastTapTime = 0L
             }
             _stats.value = s
+            dirty = true
         }
     }
 
-    fun resetStats() {
+    /** Clears the in-memory counters and writes zeros to SharedPreferences. */
+    fun resetStats(context: Context) {
         if (!isLabsBuild) return
+        appContext = context.applicationContext
+        loaded = true
         synchronized(this) {
             _stats.value = Stats()
+            dirty = false
             lastTapTime = 0L
+            lastTapBoosted = false
+            lastTapCounted = false
         }
+        ioScope.launch { flushLocked(force = true) }
     }
 
     private fun refresh(context: Context) {
+        appContext = context.applicationContext
+        load(context)
         density = context.resources.displayMetrics.density
         enabled = context.prefs().getBoolean(PREF_KEY, false)
+    }
+
+    private fun startFlushLoop() {
+        if (flushJob?.isActive == true) return
+        flushJob = ioScope.launch {
+            while (true) {
+                delay(FLUSH_INTERVAL_MS)
+                flushLocked()
+            }
+        }
+    }
+
+    /**
+     * Writes the current counters if they changed. The snapshot is taken while holding the write
+     * mutex so that a reset's zero write and a periodic write cannot interleave.
+     */
+    private suspend fun flushLocked(force: Boolean = false) {
+        writeMutex.withLock {
+            val context = appContext ?: return
+            val snapshot = synchronized(this) {
+                if (!dirty && !force) null else {
+                    dirty = false
+                    _stats.value
+                }
+            } ?: return
+            persist(context.prefs(), snapshot)
+        }
+    }
+
+    private fun persist(prefs: SharedPreferences, s: Stats) {
+        prefs.edit {
+            putInt(PREF_TOTAL_TAPS, s.totalTaps)
+            putInt(PREF_TARGET_PRESENT, s.tapsWithTarget)
+            putInt(PREF_BOOSTED_TAPS, s.boostedTaps)
+            putInt(PREF_UNBOOSTED_TAPS, s.unboostedTaps)
+            putInt(PREF_BOOSTED_DELETED, s.boostedTapsDeleted)
+            putInt(PREF_PLAIN_DELETED, s.plainTapsDeleted)
+        }
     }
 
     /**
