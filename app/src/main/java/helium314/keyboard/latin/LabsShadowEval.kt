@@ -336,7 +336,7 @@ object LabsShadowEval {
                         }
                     } ?: false
                     if (!copied) return@withLock
-                    val parsed = temporary.inputStream().buffered().use {
+                    val parsed = temporary.inputStream().bufferedReader().use {
                         ShadowModelParser.parse(it)
                     } ?: return@withLock
                     if (!replaceFile(temporary, target)) return@withLock
@@ -568,7 +568,7 @@ object LabsShadowEval {
                         return@withLock
                     }
                     val parsed = try {
-                        file.inputStream().buffered().use { ShadowModelParser.parse(it) }
+                        file.inputStream().bufferedReader().use { ShadowModelParser.parse(it) }
                     } catch (_: Exception) {
                         null
                     }
