@@ -299,8 +299,10 @@ object LabsShadowEval {
                 )
             )
         }
+        // Context keeps the real previous words even when they are capitalized. The model
+        // stores lowercase vocabulary, so the context is lowercased before lookup.
         val contextWord = committedWord.lowercase(Locale.ROOT)
-        if (isEvaluableWord(contextWord)) {
+        if (isContextWord(contextWord)) {
             previousWords.addLast(contextWord)
             while (previousWords.size > 2) previousWords.removeFirst()
         }
@@ -507,14 +509,23 @@ object LabsShadowEval {
     private fun isEvaluableWord(word: String): Boolean {
         if (word.isEmpty()) return false
         for (character in word) {
-            if (character == '\'') continue
+            if (character == '\'' || character == '\u2019') continue
             if (!character.isLetter() || !character.isLowerCase()) return false
         }
         return true
     }
 
+    private fun isContextWord(word: String): Boolean {
+        if (word.isEmpty()) return false
+        for (character in word) {
+            if (character == '\'' || character == '\u2019') continue
+            if (!character.isLetter()) return false
+        }
+        return true
+    }
+
     private fun isLowerWordCodePoint(codePoint: Int): Boolean {
-        if (codePoint == '\''.code) return true
+        if (codePoint == '\''.code || codePoint == '\u2019'.code) return true
         return Character.isLetter(codePoint) && Character.isLowerCase(codePoint)
     }
 
