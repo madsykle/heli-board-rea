@@ -36,6 +36,7 @@ import helium314.keyboard.keyboard.emoji.RecentEmojis;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.CapsMode;
 import helium314.keyboard.latin.LabsKeyBoost;
+import helium314.keyboard.latin.LabsShadowEval;
 import helium314.keyboard.latin.dictionary.Dictionary;
 import helium314.keyboard.latin.DictionaryFacilitator;
 import helium314.keyboard.latin.dictionary.DictionaryFactory;
@@ -1117,6 +1118,9 @@ public final class InputLogic {
 
         if (isComposingWord) {
             mWordComposer.applyProcessedEvent(event);
+            // Labs-only: track whether this word is still being typed strictly left to right.
+            LabsShadowEval.INSTANCE.onLetterTyped(settingsValues, codePoint,
+                    mWordComposer.getTypedWord(), mWordComposer.isBatchMode());
             // If it's the first letter, make note of auto-caps state
             if (mWordComposer.isSingleLetter()) {
                 mWordComposer.setCapitalizedModeAtStartComposingTime(inputTransaction.getShiftState());
@@ -1279,6 +1283,8 @@ public final class InputLogic {
             final String currentKeyboardScript) {
         mSpaceState = SpaceState.NONE;
         mDeleteCount++;
+        // Labs-only: a deletion means the current word was not typed strictly left to right.
+        LabsShadowEval.INSTANCE.onBackspace();
 
         // In many cases after backspace, we need to update the shift state. Normally we need
         // to do this right away to avoid the shift state being out of date in case the user types
@@ -2181,6 +2187,7 @@ public final class InputLogic {
             final boolean clearSuggestionStrip) {
         // Labs-only: cursor moves and recorrection abandon the composing word.
         LabsKeyBoost.INSTANCE.clearTarget();
+        LabsShadowEval.INSTANCE.onWordInvalidated();
         final boolean shouldFinishComposition = mWordComposer.isComposingWord();
         resetComposingState(true /* alsoResetLastComposedWord */);
         if (clearSuggestionStrip) {
@@ -2454,6 +2461,8 @@ public final class InputLogic {
      */
     private void commitChosenWord(final SettingsValues settingsValues, final String chosenWord,
             final int commitType, final String separatorString) {
+        // Capture the typed letters before WordComposer.commitWord resets the composer.
+        final String typedWordForShadow = mWordComposer.getTypedWord();
         long startTimeMillis = 0;
         if (DebugFlags.DEBUG_ENABLED) {
             startTimeMillis = SystemClock.elapsedRealtime();
@@ -2503,6 +2512,8 @@ public final class InputLogic {
         mLastComposedWord = mWordComposer.commitWord(commitType, chosenWord, separatorString, ngramContext);
         // Labs-only: a committed word has no predicted next key until the strip updates again.
         LabsKeyBoost.INSTANCE.clearTarget();
+        // Labs-only: evaluate the finished word in the background; no typed text is persisted.
+        LabsShadowEval.INSTANCE.onWordCommitted(settingsValues, typedWordForShadow, chosenWord, commitType);
         if (DebugFlags.DEBUG_ENABLED) {
             long runTimeMillis = SystemClock.elapsedRealtime() - startTimeMillis;
             Log.d(TAG, "commitChosenWord() : " + runTimeMillis + " ms to run "

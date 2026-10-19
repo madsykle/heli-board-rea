@@ -54,6 +54,10 @@ jobs:
       - name: Privacy guard
         run: ./gradlew privacyGuardDebugNoMinify privacyGuardRelease privacyGuardLabs --stacktrace
 
+      # The parser/scoring test uses only synthetic n-grams, never the private model file.
+      - name: Run Labs shadow model tests
+        run: ./gradlew testLabsUnitTest --tests helium314.keyboard.latin.LabsShadowModelTest --stacktrace
+
       - name: Decode signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}

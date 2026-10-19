@@ -33,4 +33,22 @@
     <string name="labs_counter_boosted_deleted" translatable="false">Boosted taps deleted within 1.5 s</string>
     <string name="labs_counter_plain_deleted" translatable="false">Unboosted taps deleted within 1.5 s</string>
     <string name="labs_counter_reset" translatable="false">Reset counters</string>
+
+    <!-- Labs build only: prediction shadow evaluation (REA fork) -->
+    <string name="labs_section_prediction_shadow" translatable="false">Prediction shadow mode</string>
+    <string name="labs_prediction_shadow_mode" translatable="false">Prediction shadow mode</string>
+    <string name="labs_prediction_shadow_summary" translatable="false">Compare an imported n-gram model with HeliBoard\'s suggestions. Runs in the background; counters are aggregate only.</string>
+    <string name="labs_shadow_model" translatable="false">Model</string>
+    <string name="labs_shadow_model_import" translatable="false">Import model</string>
+    <string name="labs_shadow_model_delete" translatable="false">Delete model</string>
+    <string name="labs_shadow_model_loaded" translatable="false">loaded, %1$d lines</string>
+    <string name="labs_shadow_model_none" translatable="false">none</string>
+    <string name="labs_shadow_prefix1_all" translatable="false">Prefix 1, all words</string>
+    <string name="labs_shadow_prefix1_typed" translatable="false">Prefix 1, typed fully</string>
+    <string name="labs_shadow_prefix2_all" translatable="false">Prefix 2, all words</string>
+    <string name="labs_shadow_prefix2_typed" translatable="false">Prefix 2, typed fully</string>
+    <string name="labs_shadow_words" translatable="false">Words evaluated</string>
+    <string name="labs_shadow_model_hits" translatable="false">Model top-1 hits</string>
+    <string name="labs_shadow_heli_hits" translatable="false">HeliBoard top-1 hits</string>
+    <string name="labs_shadow_reset" translatable="false">Reset shadow counters</string>
 </resources>
