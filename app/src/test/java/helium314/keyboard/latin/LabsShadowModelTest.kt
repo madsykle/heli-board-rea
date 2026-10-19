@@ -17,11 +17,11 @@ class LabsShadowModelTest {
         b	3
         #B
         <s>	a	5
-        a	b	4
+        a	ab	4
         ab	c	3
         #T
         <s>	a	b	4
-        a	b	c	3
+        a	b	abc	3
         #END	100	0.75
     """.trimIndent() + "\n"
 
