@@ -56,7 +56,7 @@ jobs:
 
       # The parser/scoring test uses only synthetic n-grams, never the private model file.
       - name: Run Labs shadow model tests
-        run: ./gradlew testRunTestsUnitTest --tests helium314.keyboard.latin.LabsShadowModelTest --stacktrace
+        run: ./gradlew test --tests helium314.keyboard.latin.LabsShadowModelTest --stacktrace
 
       - name: Decode signing keystore
         env:
