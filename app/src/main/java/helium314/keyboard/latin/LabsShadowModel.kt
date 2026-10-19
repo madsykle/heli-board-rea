@@ -13,8 +13,9 @@ import kotlin.math.max
  * `#END<TAB>TOTAL_TOKENS<TAB>D` line. It never logs, and the caller owns the file.
  *
  * The model is immutable after construction. The prefix index maps one- and two-character
- * prefixes to sorted vocabulary lists, so candidate retrieval is a single map lookup. Scoring
- * happens off the touch path in [LabsShadowEval].
+ * prefixes to sorted vocabulary lists; a general prefix narrows the matching two-character list
+ * with a binary search and a short scan. Candidate retrieval is off the touch path in
+ * [LabsShadowEval].
  */
 internal class ShadowModel(
     private val unigramProbabilities: Map<String, Double>,
@@ -36,7 +37,7 @@ internal class ShadowModel(
      */
     fun predict(prefix: String, context: List<String>): String? {
         if (prefix.isEmpty() || context.isEmpty()) return null
-        val candidates = prefixIndex[prefix] ?: return null
+        val candidates = candidatesFor(prefix) ?: return null
         var best: String? = null
         var bestScore = -1.0
         if (context.size >= 2) {
@@ -60,6 +61,25 @@ internal class ShadowModel(
             }
         }
         return best
+    }
+
+    /**
+     * The index only stores one- and two-character keys. Longer prefixes are narrowed inside the
+     * sorted two-character candidate list, so suggestion ordering works for every prefix without
+     * duplicating the vocabulary for every prefix length.
+     */
+    private fun candidatesFor(prefix: String): List<String>? {
+        if (prefix.length <= 2) return prefixIndex[prefix]
+        val base = prefixIndex[prefix.substring(0, 2)] ?: return null
+        var low = 0
+        var high = base.size
+        while (low < high) {
+            val mid = (low + high) ushr 1
+            if (base[mid] < prefix) low = mid + 1 else high = mid
+        }
+        var end = low
+        while (end < base.size && base[end].startsWith(prefix)) end++
+        return if (low < end) base.subList(low, end) else null
     }
 
     private fun unigramProbability(word: String): Double =

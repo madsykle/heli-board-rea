@@ -66,6 +66,10 @@ public class SuggestedWords {
     protected final ArrayList<SuggestedWordInfo> mSuggestedWordInfoList;
     @Nullable
     public final ArrayList<SuggestedWordInfo> mRawSuggestions;
+    // Labs-only: the list as HeliBoard built it, before the model suggestion order was applied.
+    // Null whenever no reorder happened, so release behaviour and memory use are unchanged.
+    @Nullable
+    private final ArrayList<SuggestedWordInfo> mOriginalSuggestedWordInfoList;
 
     public SuggestedWords(@NonNull final ArrayList<SuggestedWordInfo> suggestedWordInfoList,
             @Nullable final ArrayList<SuggestedWordInfo> rawSuggestions,
@@ -75,6 +79,19 @@ public class SuggestedWords {
             final boolean isObsoleteSuggestions,
             final int inputStyle,
             final int sequenceNumber) {
+        this(suggestedWordInfoList, rawSuggestions, typedWordInfo, typedWordValid,
+                willAutoCorrect, isObsoleteSuggestions, inputStyle, sequenceNumber, null);
+    }
+
+    public SuggestedWords(@NonNull final ArrayList<SuggestedWordInfo> suggestedWordInfoList,
+            @Nullable final ArrayList<SuggestedWordInfo> rawSuggestions,
+            @Nullable final SuggestedWordInfo typedWordInfo,
+            final boolean typedWordValid,
+            final boolean willAutoCorrect,
+            final boolean isObsoleteSuggestions,
+            final int inputStyle,
+            final int sequenceNumber,
+            @Nullable final ArrayList<SuggestedWordInfo> originalSuggestedWordInfoList) {
         mSuggestedWordInfoList = suggestedWordInfoList;
         mRawSuggestions = rawSuggestions;
         mTypedWordValid = typedWordValid;
@@ -83,6 +100,22 @@ public class SuggestedWords {
         mInputStyle = inputStyle;
         mSequenceNumber = sequenceNumber;
         mTypedWordInfo = typedWordInfo;
+        mOriginalSuggestedWordInfoList = originalSuggestedWordInfoList;
+    }
+
+    /**
+     * Labs-only: returns the same suggestions with the pre-reorder list restored, so the shadow
+     * evaluation keeps measuring HeliBoard's original order. Returns this object when no Labs
+     * reorder happened.
+     */
+    @NonNull
+    public SuggestedWords getShadowSuggestions() {
+        if (mOriginalSuggestedWordInfoList == null) {
+            return this;
+        }
+        return new SuggestedWords(mOriginalSuggestedWordInfoList, mRawSuggestions, mTypedWordInfo,
+                mTypedWordValid, mWillAutoCorrect, mIsObsoleteSuggestions, mInputStyle,
+                mSequenceNumber);
     }
 
     public boolean isEmpty() {

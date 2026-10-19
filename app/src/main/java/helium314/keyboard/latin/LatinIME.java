@@ -908,6 +908,7 @@ public class LatinIME extends InputMethodService implements
         }
         // Labs-only: a new field never inherits previous-word context or a half-typed word.
         LabsShadowEval.INSTANCE.onFieldChanged(this, currentSettingsValues);
+        LabsSuggestionOrder.INSTANCE.onFieldChanged(this, currentSettingsValues, restarting);
         Log.i(TAG, (restarting ? "Res" : "S") +"tarting input. Cursor position = " + editorInfo.initialSelStart + "," + editorInfo.initialSelEnd);
         if (DebugFlags.DEBUG_ENABLED) {
             EditorInfoCompatUtils.INSTANCE.debugLog(editorInfo, TAG);
@@ -1060,6 +1061,7 @@ public class LatinIME extends InputMethodService implements
         Log.i(TAG, "onFinishInputView");
         // Labs-only: hiding the keyboard discards the in-memory word and previous-word context.
         LabsShadowEval.INSTANCE.onKeyboardHidden();
+        LabsSuggestionOrder.INSTANCE.onKeyboardHidden();
         cleanupInternalStateForFinishInput();
     }
 
@@ -1507,9 +1509,14 @@ public class LatinIME extends InputMethodService implements
         LabsKeyBoost.INSTANCE.onSuggestions(this, suggestedWords,
                 mInputLogic.getTypedWord(), mInputLogic.isComposingWord());
         final SettingsValues currentSettingsValues = mSettings.getCurrent();
-        // Labs-only: capture the real suggestion after the first and second typed letter. No-op
-        // on release and never stores or logs the typed text.
-        LabsShadowEval.INSTANCE.onSuggestions(this, currentSettingsValues, suggestedWords,
+        // Labs-only: the shadow evaluation must keep seeing the list before the model order was
+        // applied. getShadowSuggestions() returns the original list, or this object when no
+        // reorder happened. No-op on release and never stores or logs the typed text.
+        LabsShadowEval.INSTANCE.onSuggestions(this, currentSettingsValues,
+                suggestedWords.getShadowSuggestions(),
+                mInputLogic.getTypedWord(), mInputLogic.isComposingWord());
+        // Labs-only: capture the slots exactly as displayed after the first and second letter.
+        LabsSuggestionOrder.INSTANCE.onSuggestions(currentSettingsValues, suggestedWords,
                 mInputLogic.getTypedWord(), mInputLogic.isComposingWord());
         mInputLogic.setSuggestedWords(suggestedWords);
         // TODO: Modify this when we support suggestions with hard keyboard

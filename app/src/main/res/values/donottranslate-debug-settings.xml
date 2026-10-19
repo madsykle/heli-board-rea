@@ -51,4 +51,18 @@
     <string name="labs_shadow_model_hits" translatable="false">Model top-1 hits</string>
     <string name="labs_shadow_heli_hits" translatable="false">HeliBoard top-1 hits</string>
     <string name="labs_shadow_reset" translatable="false">Reset shadow counters</string>
+
+    <string name="labs_section_model_order" translatable="false">Model suggestion order</string>
+    <string name="labs_model_suggestion_order" translatable="false">Model suggestion order</string>
+    <string name="labs_model_suggestion_order_off" translatable="false">Off</string>
+    <string name="labs_model_suggestion_order_on" translatable="false">On</string>
+    <string name="labs_model_suggestion_order_ab" translatable="false">A-B test</string>
+    <string name="labs_order_off_prefix1" translatable="false">Off arm, prefix 1</string>
+    <string name="labs_order_off_prefix2" translatable="false">Off arm, prefix 2</string>
+    <string name="labs_order_on_prefix1" translatable="false">On arm, prefix 1</string>
+    <string name="labs_order_on_prefix2" translatable="false">On arm, prefix 2</string>
+    <string name="labs_order_words" translatable="false">Words evaluated</string>
+    <string name="labs_order_first_hits" translatable="false">Final word in first real slot</string>
+    <string name="labs_order_any_hits" translatable="false">Final word in any visible slot</string>
+    <string name="labs_order_reset" translatable="false">Reset model order counters</string>
 </resources>

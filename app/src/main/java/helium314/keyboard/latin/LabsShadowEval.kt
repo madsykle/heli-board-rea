@@ -158,6 +158,33 @@ object LabsShadowEval {
         startFlushLoop()
     }
 
+    /** True when a parsed model is in memory. The check is a volatile read; no I/O. */
+    internal fun isModelLoaded(): Boolean = isLabsBuild && model != null
+
+    /**
+     * Labs-only suggestion ordering: the model's top candidate for [prefix]. This runs on the
+     * suggestion worker thread, never on the touch path, and returns a lower-case vocabulary
+     * word or null. Nothing is logged.
+     */
+    internal fun predictForOrdering(prefix: String, context: List<String>): String? {
+        if (!isLabsBuild || prefix.isEmpty() || context.isEmpty()) return null
+        val currentModel = model ?: return null
+        return try {
+            currentModel.predict(prefix.lowercase(Locale.ROOT), context)
+        } catch (_: RuntimeException) {
+            null
+        }
+    }
+
+    /** Loads the shared model for suggestion ordering without changing any shadow counter. */
+    internal fun requestModelLoad(context: Context) {
+        if (!isLabsBuild) return
+        val app = context.applicationContext
+        appContext = app
+        load(app)
+        ensureModelLoaded()
+    }
+
     /** Called when the Labs switch changes while the settings screen is open. */
     fun onEnabledChanged(context: Context, isEnabled: Boolean) {
         if (!isLabsBuild) return

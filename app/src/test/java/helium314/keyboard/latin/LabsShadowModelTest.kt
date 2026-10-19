@@ -44,6 +44,15 @@ class LabsShadowModelTest {
     }
 
     @Test
+    fun predictsWithPrefixLongerThanTheIndexKeys() {
+        val parsed = assertNotNull(
+            ShadowModelParser.parse(StringReader(sample).buffered())
+        )
+        assertEquals("abc", parsed.model.predict("abc", listOf("a", "b")))
+        assertNull(parsed.model.predict("abd", listOf("a", "b")))
+    }
+
+    @Test
     fun ignoresContextsWithoutAPreviousWord() {
         val parsed = assertNotNull(
             ShadowModelParser.parse(StringReader(sample).buffered())

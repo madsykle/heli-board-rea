@@ -150,8 +150,28 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             }
         }
         val isTypedWordValid = firstOccurrenceOfTypedWordInSuggestions > -1 || (!resultsArePredictions && !allowsToBeAutoCorrected)
+        val willAutoCorrect = hasAutoCorrection || correctToCapitalizedWord
+        // Labs-only: move the imported model's top completion into the first real suggestion
+        // slot. This runs on the suggestion worker thread. When willAutoCorrect is true the
+        // reorder is skipped, so autocorrect and space/punctuation commits are unchanged.
+        val originalSuggestions = LabsSuggestionOrder.reorderForTyping(
+            typedWord = typedWordString,
+            suggestions = suggestionsList,
+            willAutoCorrect = willAutoCorrect,
+            inputStyle = inputStyle,
+            composing = wordComposer.isComposingWord,
+            settingsValues = Settings.getValues(),
+            transformModelWord = { word ->
+                capitalizeAndAddTrailingSingleQuotes(
+                    SuggestedWordInfo(word, "", 0, SuggestedWordInfo.KIND_COMPLETION,
+                        Dictionary.DICTIONARY_USER_TYPED, SuggestedWordInfo.NOT_AN_INDEX,
+                        SuggestedWordInfo.NOT_A_CONFIDENCE),
+                    mDictionaryFacilitator.mainLocale, capsMode, trailingSingleQuotesCount
+                )
+            }
+        )
         return SuggestedWords(suggestionsList, suggestionResults.mRawSuggestions, typedWordInfo,
-            isTypedWordValid, hasAutoCorrection || correctToCapitalizedWord, false, inputStyle, sequenceNumber)
+            isTypedWordValid, willAutoCorrect, false, inputStyle, sequenceNumber, originalSuggestions)
     }
 
     // returns [allowsToBeAutoCorrected, hasAutoCorrection]

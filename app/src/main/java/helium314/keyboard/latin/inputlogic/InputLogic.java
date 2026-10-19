@@ -37,6 +37,7 @@ import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.CapsMode;
 import helium314.keyboard.latin.LabsKeyBoost;
 import helium314.keyboard.latin.LabsShadowEval;
+import helium314.keyboard.latin.LabsSuggestionOrder;
 import helium314.keyboard.latin.dictionary.Dictionary;
 import helium314.keyboard.latin.DictionaryFacilitator;
 import helium314.keyboard.latin.dictionary.DictionaryFactory;
@@ -1121,6 +1122,8 @@ public final class InputLogic {
             // Labs-only: track whether this word is still being typed strictly left to right.
             LabsShadowEval.INSTANCE.onLetterTyped(settingsValues, codePoint,
                     mWordComposer.getTypedWord(), mWordComposer.isBatchMode());
+            LabsSuggestionOrder.INSTANCE.onLetterTyped(settingsValues, codePoint,
+                    mWordComposer.getTypedWord(), mWordComposer.isBatchMode());
             // If it's the first letter, make note of auto-caps state
             if (mWordComposer.isSingleLetter()) {
                 mWordComposer.setCapitalizedModeAtStartComposingTime(inputTransaction.getShiftState());
@@ -1285,6 +1288,7 @@ public final class InputLogic {
         mDeleteCount++;
         // Labs-only: a deletion means the current word was not typed strictly left to right.
         LabsShadowEval.INSTANCE.onBackspace();
+        LabsSuggestionOrder.INSTANCE.onBackspace();
 
         // In many cases after backspace, we need to update the shift state. Normally we need
         // to do this right away to avoid the shift state being out of date in case the user types
@@ -1327,6 +1331,9 @@ public final class InputLogic {
             if (mWordComposer.isComposingWord()) {
                 setComposingTextInternal(getTextWithUnderline(mWordComposer.getTypedWord()), 1);
             } else {
+                // Labs-only: a fully deleted word starts clean again, so the next word can be
+                // tracked from its first letter. The previous-word context is kept.
+                LabsSuggestionOrder.INSTANCE.onWordInvalidated();
                 mConnection.commitText("", 1);
             }
             updateInlineEmojiSearch();
@@ -2188,6 +2195,7 @@ public final class InputLogic {
         // Labs-only: cursor moves and recorrection abandon the composing word.
         LabsKeyBoost.INSTANCE.clearTarget();
         LabsShadowEval.INSTANCE.onWordInvalidated();
+        LabsSuggestionOrder.INSTANCE.onWordInvalidated();
         final boolean shouldFinishComposition = mWordComposer.isComposingWord();
         resetComposingState(true /* alsoResetLastComposedWord */);
         if (clearSuggestionStrip) {
@@ -2514,6 +2522,7 @@ public final class InputLogic {
         LabsKeyBoost.INSTANCE.clearTarget();
         // Labs-only: evaluate the finished word in the background; no typed text is persisted.
         LabsShadowEval.INSTANCE.onWordCommitted(settingsValues, typedWordForShadow, chosenWord, commitType);
+        LabsSuggestionOrder.INSTANCE.onWordCommitted(settingsValues, typedWordForShadow, chosenWord);
         if (DebugFlags.DEBUG_ENABLED) {
             long runTimeMillis = SystemClock.elapsedRealtime() - startTimeMillis;
             Log.d(TAG, "commitChosenWord() : " + runTimeMillis + " ms to run "

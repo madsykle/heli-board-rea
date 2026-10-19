@@ -11,14 +11,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import helium314.keyboard.latin.LabsKeyBoost
 import helium314.keyboard.latin.LabsShadowEval
 import helium314.keyboard.latin.LabsShadowEval.Metric
 import helium314.keyboard.latin.LabsShadowEval.ModelStatus
+import helium314.keyboard.latin.LabsSuggestionOrder
+import helium314.keyboard.latin.LabsSuggestionOrder.Metric as OrderMetric
 import helium314.keyboard.latin.R
+import helium314.keyboard.settings.Setting
 import helium314.keyboard.settings.SearchSettingsScreen
+import helium314.keyboard.settings.preferences.ListPreference
 import helium314.keyboard.settings.preferences.Preference
 import helium314.keyboard.settings.preferences.PreferenceCategory
 import helium314.keyboard.settings.preferences.SwitchPreference
@@ -37,8 +42,17 @@ fun LabsScreen(
 ) {
     val stats by LabsKeyBoost.stats.collectAsState()
     val shadowStats by LabsShadowEval.stats.collectAsState()
+    val orderStats by LabsSuggestionOrder.stats.collectAsState()
     val modelStatus by LabsShadowEval.status.collectAsState()
     val ctx = LocalContext.current
+    val orderSetting = remember(ctx) {
+        Setting(ctx, LabsSuggestionOrder.PREF_KEY, R.string.labs_model_suggestion_order) { }
+    }
+    val orderItems = listOf(
+        stringResource(R.string.labs_model_suggestion_order_off) to LabsSuggestionOrder.MODE_OFF,
+        stringResource(R.string.labs_model_suggestion_order_on) to LabsSuggestionOrder.MODE_ON,
+        stringResource(R.string.labs_model_suggestion_order_ab) to LabsSuggestionOrder.MODE_AB,
+    )
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -47,6 +61,7 @@ fun LabsScreen(
     LaunchedEffect(Unit) {
         LabsKeyBoost.load(ctx)
         LabsShadowEval.load(ctx)
+        LabsSuggestionOrder.load(ctx)
     }
     SearchSettingsScreen(
         onClickBack = onClickBack,
@@ -146,6 +161,55 @@ fun LabsScreen(
                     onClick = { LabsShadowEval.resetStats(ctx) }
                 )
             }
+
+            item { PreferenceCategory(stringResource(R.string.labs_section_model_order)) }
+            item {
+                ListPreference(
+                    setting = orderSetting,
+                    items = orderItems,
+                    default = LabsSuggestionOrder.MODE_AB,
+                    onDefault = { },
+                    onChanged = { LabsSuggestionOrder.onModeChanged(ctx, it) }
+                )
+            }
+            item {
+                OrderStatsGroup(
+                    title = R.string.labs_order_off_prefix1,
+                    words = orderStats[OrderMetric.OFF_P1_WORDS],
+                    firstHits = orderStats[OrderMetric.OFF_P1_FIRST],
+                    anyHits = orderStats[OrderMetric.OFF_P1_ANY]
+                )
+            }
+            item {
+                OrderStatsGroup(
+                    title = R.string.labs_order_off_prefix2,
+                    words = orderStats[OrderMetric.OFF_P2_WORDS],
+                    firstHits = orderStats[OrderMetric.OFF_P2_FIRST],
+                    anyHits = orderStats[OrderMetric.OFF_P2_ANY]
+                )
+            }
+            item {
+                OrderStatsGroup(
+                    title = R.string.labs_order_on_prefix1,
+                    words = orderStats[OrderMetric.ON_P1_WORDS],
+                    firstHits = orderStats[OrderMetric.ON_P1_FIRST],
+                    anyHits = orderStats[OrderMetric.ON_P1_ANY]
+                )
+            }
+            item {
+                OrderStatsGroup(
+                    title = R.string.labs_order_on_prefix2,
+                    words = orderStats[OrderMetric.ON_P2_WORDS],
+                    firstHits = orderStats[OrderMetric.ON_P2_FIRST],
+                    anyHits = orderStats[OrderMetric.ON_P2_ANY]
+                )
+            }
+            item {
+                Preference(
+                    name = stringResource(R.string.labs_order_reset),
+                    onClick = { LabsSuggestionOrder.resetStats(ctx) }
+                )
+            }
         }
     }
 }
@@ -168,6 +232,21 @@ private fun ShadowStatsGroup(
         CounterPreference(R.string.labs_shadow_words, words)
         HitPreference(R.string.labs_shadow_model_hits, modelHits, words)
         HitPreference(R.string.labs_shadow_heli_hits, heliHits, words)
+    }
+}
+
+@Composable
+private fun OrderStatsGroup(
+    @StringRes title: Int,
+    words: Int,
+    firstHits: Int,
+    anyHits: Int,
+) {
+    Column {
+        PreferenceCategory(stringResource(title))
+        CounterPreference(R.string.labs_order_words, words)
+        HitPreference(R.string.labs_order_first_hits, firstHits, words)
+        HitPreference(R.string.labs_order_any_hits, anyHits, words)
     }
 }
 
