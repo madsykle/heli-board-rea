@@ -18,6 +18,7 @@ import helium314.keyboard.latin.LabsKeyBoost
 import helium314.keyboard.latin.LabsShadowEval
 import helium314.keyboard.latin.LabsShadowEval.Metric
 import helium314.keyboard.latin.LabsShadowEval.ModelStatus
+import helium314.keyboard.latin.LabsSpaceTrackpad
 import helium314.keyboard.latin.LabsSuggestionOrder
 import helium314.keyboard.latin.LabsSuggestionOrder.Metric as OrderMetric
 import helium314.keyboard.latin.R
@@ -62,6 +63,7 @@ fun LabsScreen(
         LabsKeyBoost.load(ctx)
         LabsShadowEval.load(ctx)
         LabsSuggestionOrder.load(ctx)
+        LabsSpaceTrackpad.load(ctx)
     }
     SearchSettingsScreen(
         onClickBack = onClickBack,
@@ -76,6 +78,15 @@ fun LabsScreen(
                     key = LabsKeyBoost.PREF_KEY,
                     default = false,
                     description = stringResource(R.string.labs_predicted_key_boost_summary)
+                )
+            }
+            item {
+                SwitchPreference(
+                    name = stringResource(R.string.labs_space_trackpad),
+                    key = LabsSpaceTrackpad.PREF_KEY,
+                    default = false,
+                    description = stringResource(R.string.labs_space_trackpad_summary),
+                    onCheckedChange = { LabsSpaceTrackpad.load(ctx, force = true) }
                 )
             }
             item { PreferenceCategory(stringResource(R.string.labs_section_counters)) }

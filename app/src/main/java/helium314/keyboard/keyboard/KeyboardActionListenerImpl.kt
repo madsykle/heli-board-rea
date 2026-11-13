@@ -187,6 +187,17 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
             keyboardSwitcher.mainKeyboardView?.alpha = 1f
             true
         }
+        KeyboardActionListener.CustomAction.TRACKPAD_ON -> {
+            keyboardSwitcher.mainKeyboardView?.alpha = 1f
+            keyboardSwitcher.mainKeyboardView?.setKeyTopVisualsHidden(true)
+            performHapticFeedback(HapticEvent.GESTURE_MOVE)
+            true
+        }
+        KeyboardActionListener.CustomAction.TRACKPAD_OFF -> {
+            keyboardSwitcher.mainKeyboardView?.setKeyTopVisualsHidden(false)
+            keyboardSwitcher.mainKeyboardView?.alpha = 1f
+            true
+        }
         KeyboardActionListener.CustomAction.PERFORM_HAPTIC -> {
             performHapticFeedback(HapticEvent.KEY_LONG_PRESS)
             true

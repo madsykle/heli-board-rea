@@ -45,6 +45,7 @@ import helium314.keyboard.keyboard.internal.SlidingKeyInputDrawingPreview;
 import helium314.keyboard.keyboard.internal.TimerHandler;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.LabsKeyBoost;
+import helium314.keyboard.latin.LabsSpaceTrackpad;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.RichInputMethodSubtype;
 import helium314.keyboard.latin.SuggestedWords;
@@ -76,6 +77,8 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
 
     /* Space key and its icon and background. */
     private Key mSpaceKey;
+    /* Labs-only: hide key letters/icons while the space-bar trackpad is active. */
+    private boolean mHideKeyTopVisuals = false;
     // Stuff to draw language name on spacebar.
     private final int mLanguageOnSpacebarFinalAlpha;
     private final ObjectAnimator mLanguageOnSpacebarFadeoutAnimator;
@@ -312,6 +315,9 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         PointerTracker.setKeyDetector(mKeyDetector);
         // Labs-only: the predicted key belongs to the previous layout.
         LabsKeyBoost.INSTANCE.onKeyboardChanged(getContext());
+        // Labs-only: reload the trackpad switch and drop any trackpad state from the old layout.
+        LabsSpaceTrackpad.INSTANCE.onKeyboardChanged(getContext());
+        setKeyTopVisualsHidden(false);
         mPopupKeysKeyboardCache.clear();
 
         mSpaceKey = keyboard.getKey(Constants.CODE_SPACE);
@@ -704,9 +710,21 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         invalidateKey(mSpaceKey);
     }
 
+    /** Labs-only: hide all key letters and icons without changing key shapes or the toolbar. */
+    public void setKeyTopVisualsHidden(final boolean hidden) {
+        if (mHideKeyTopVisuals == hidden) {
+            return;
+        }
+        mHideKeyTopVisuals = hidden;
+        invalidateAllKeys();
+    }
+
     @Override
     protected void onDrawKeyTopVisuals(@NonNull final Key key, @NonNull final Canvas canvas,
             @NonNull final Paint paint, @NonNull final KeyDrawParams params) {
+        if (mHideKeyTopVisuals) {
+            return;
+        }
         if (key.altCodeWhileTyping() && key.isEnabled()) {
             params.mAnimAlpha = Constants.Color.ALPHA_OPAQUE;
         }
@@ -718,7 +736,9 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
                 drawLanguageOnSpacebar(key, canvas, paint);
             }
             // Whether space key needs to show the "..." popup hint for special purposes
-            if (key.isLongPressEnabled() && mHasMultipleEnabledIMEsOrSubtypes && Settings.getValues().mSpaceForLangChange) {
+            if (key.isLongPressEnabled() && mHasMultipleEnabledIMEsOrSubtypes
+                    && Settings.getValues().mSpaceForLangChange
+                    && !LabsSpaceTrackpad.INSTANCE.isEnabled()) {
                 drawKeyPopupHint(key, canvas, paint, params);
             }
         } else if (code == KeyCode.LANGUAGE_SWITCH) {

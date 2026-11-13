@@ -4,6 +4,7 @@ package helium314.keyboard.keyboard;
 import android.os.SystemClock;
 
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
+import helium314.keyboard.latin.LabsTrackpadSteps;
 import helium314.keyboard.latin.common.Constants;
 import helium314.keyboard.latin.settings.Settings;
 import helium314.keyboard.latin.settings.SettingsValues;
@@ -13,6 +14,7 @@ public class TouchpadHandler {
     private final android.os.Handler mHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
     private static boolean sTouchpadModeActive = false;
+    private static boolean sLabsTrackpadModeActive = false;
     private boolean mInTouchpadMode = false;
     private boolean mHasVibrated = false;
     private boolean mIsScrolling = false;
@@ -21,6 +23,13 @@ public class TouchpadHandler {
     private static final float TOUCHPAD_ACCELERATION_FACTOR = 50.0f;    // Lower = more acceleration
     private static final float EDGE_ACCELERATION_FACTOR = 0.95f;
     private static final int MIN_EDGE_ACCELERATION_DELAY = 20;
+
+    // Labs-only fixed step sizes. Tune these to change cursor speed; acceleration still applies.
+    private static final int LABS_HORIZONTAL_STEP_PX = 22;              // one character
+    private static final int LABS_VERTICAL_STEP_PX = 55;                // one line
+    private final LabsTrackpadSteps mLabsSteps = new LabsTrackpadSteps(
+            LABS_HORIZONTAL_STEP_PX, LABS_VERTICAL_STEP_PX, TOUCHPAD_ACCELERATION_FACTOR);
+    private boolean mLabsTrackpad = false;
 
     private long mTouchpadActivationTime;
     private int mTouchpadLastX, mTouchpadLastY;
@@ -40,14 +49,50 @@ public class TouchpadHandler {
         sTouchpadModeActive = active;
     }
 
+    /** Labs-only cleanup that never clears the classic swipe touchpad's static flag. */
+    public static void resetLabsTouchpadMode() {
+        if (!sLabsTrackpadModeActive) return;
+        sLabsTrackpadModeActive = false;
+        sTouchpadModeActive = false;
+    }
+
     public void disableTouchpadMode() {
         if (!mInTouchpadMode) return;
         stopEdgeScrolling();
         stopHapticRunnable();
         mInTouchpadMode = false;
         sTouchpadModeActive = false;
-        mListener.onCustomRequest(KeyboardActionListener.CustomAction.TOUCHPAD_OFF);
+        final boolean labs = mLabsTrackpad;
+        mLabsTrackpad = false;
+        if (labs) {
+            sLabsTrackpadModeActive = false;
+        }
+        mLabsSteps.reset();
+        if (mListener != null) {
+            mListener.onCustomRequest(labs
+                    ? KeyboardActionListener.CustomAction.TRACKPAD_OFF
+                    : KeyboardActionListener.CustomAction.TOUCHPAD_OFF);
+        }
         mListener = null;
+    }
+
+    /** Labs-only: start immediately, with no debounce and no delayed long-press haptic. */
+    public void startTouchpadMode(int x, int y, KeyboardActionListener listener) {
+        if (mInTouchpadMode) {
+            disableTouchpadMode();
+        }
+        sTouchpadModeActive = true;
+        sLabsTrackpadModeActive = true;
+        mListener = listener;
+        mInTouchpadMode = true;
+        mLabsTrackpad = true;
+        mHasVibrated = true;
+        mTouchpadLastX = x;
+        mTouchpadLastY = y;
+        mTouchpadActivationTime = SystemClock.elapsedRealtime();
+        mLabsSteps.reset();
+        mHandler.removeCallbacks(mHapticRunnable);
+        mListener.onCustomRequest(KeyboardActionListener.CustomAction.TRACKPAD_ON);
     }
 
     public void enableTouchpadMove(int x, int y, KeyboardActionListener listener) {
@@ -71,6 +116,11 @@ public class TouchpadHandler {
     }
 
     private void onMove(int x, int y) {
+        // Labs-only: fixed steps, no debounce, no edge scrolling, no sensitivity preference.
+        if (mLabsTrackpad) {
+            onLabsTrackpadMove(x, y);
+            return;
+        }
         SettingsValues sv = Settings.getValues();
 
         // Debounce
@@ -126,6 +176,25 @@ public class TouchpadHandler {
             int direction = positive ? KeyCode.ARROW_DOWN : KeyCode.ARROW_UP;
             mListener.onCodeInput(direction, Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false);
             mTouchpadAccY -= (positive ? moveThreshold : -moveThreshold);
+        }
+    }
+
+    private void onLabsTrackpadMove(int x, int y) {
+        int deltaX = x - mTouchpadLastX;
+        int deltaY = y - mTouchpadLastY;
+        mTouchpadLastX = x;
+        mTouchpadLastY = y;
+        LabsTrackpadSteps.Steps steps = mLabsSteps.add(deltaX, deltaY);
+        emitLabsSteps(steps.getHorizontal(), KeyCode.ARROW_RIGHT, KeyCode.ARROW_LEFT);
+        emitLabsSteps(steps.getVertical(), KeyCode.ARROW_DOWN, KeyCode.ARROW_UP);
+    }
+
+    private void emitLabsSteps(int steps, int positive, int negative) {
+        if (steps == 0) return;
+        int direction = steps > 0 ? positive : negative;
+        int count = Math.abs(steps);
+        for (int i = 0; i < count; i++) {
+            mListener.onCodeInput(direction, Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false);
         }
     }
 

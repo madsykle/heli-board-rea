@@ -909,6 +909,7 @@ public class LatinIME extends InputMethodService implements
         // Labs-only: a new field never inherits previous-word context or a half-typed word.
         LabsShadowEval.INSTANCE.onFieldChanged(this, currentSettingsValues);
         LabsSuggestionOrder.INSTANCE.onFieldChanged(this, currentSettingsValues, restarting);
+        LabsSpaceTrackpad.INSTANCE.onFieldChanged(this);
         Log.i(TAG, (restarting ? "Res" : "S") +"tarting input. Cursor position = " + editorInfo.initialSelStart + "," + editorInfo.initialSelEnd);
         if (DebugFlags.DEBUG_ENABLED) {
             EditorInfoCompatUtils.INSTANCE.debugLog(editorInfo, TAG);
@@ -1062,6 +1063,7 @@ public class LatinIME extends InputMethodService implements
         // Labs-only: hiding the keyboard discards the in-memory word and previous-word context.
         LabsShadowEval.INSTANCE.onKeyboardHidden();
         LabsSuggestionOrder.INSTANCE.onKeyboardHidden();
+        LabsSpaceTrackpad.INSTANCE.onKeyboardHidden();
         cleanupInternalStateForFinishInput();
     }
 

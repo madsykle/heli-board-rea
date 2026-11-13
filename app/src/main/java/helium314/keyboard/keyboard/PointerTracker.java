@@ -30,6 +30,7 @@ import helium314.keyboard.keyboard.internal.TimerProxy;
 import helium314.keyboard.keyboard.internal.TypingTimeRecorder;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.LabsKeyBoost;
+import helium314.keyboard.latin.LabsSpaceTrackpad;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.common.Constants;
 import helium314.keyboard.latin.common.CoordinateUtils;
@@ -180,6 +181,8 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     // Touchpad mode for cursor control
     private final TouchpadHandler mTouchpadHandler = new TouchpadHandler();
+    // Labs-only: this pointer activated the space-bar trackpad.
+    private boolean mLabsTrackpadActive = false;
 
     private final BatchInputArbiter mBatchInputArbiter;
     private final GestureStrokeDrawingPoints mGestureStrokeDrawingPoints;
@@ -238,6 +241,14 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     public static void cancelAllPointerTrackers() {
         sPointerTrackerQueue.cancelAllPointerTrackers();
+    }
+
+    /** Labs-only: release any active space-bar trackpad without touching the classic touchpad mode. */
+    public static void cancelLabsSpaceTrackpad() {
+        final int trackersSize = sTrackers.size();
+        for (int i = 0; i < trackersSize; ++i) {
+            sTrackers.get(i).finishLabsTrackpad();
+        }
     }
 
     public static void suppressShiftLongPress() {
@@ -705,7 +716,10 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         // A gesture should start only from a non-modifier key. Note that the gesture detection is
         // disabled when the key is repeating.
         mIsDetectingGesture = (mKeyboard != null) && mKeyboard.mId.getElement().isAlphabet()
-                && key != null && !key.isModifier() && !mKeySwipeAllowed && !sInKeySwipe;
+                && key != null && !key.isModifier() && !mKeySwipeAllowed && !sInKeySwipe
+                // Labs-only: with the space-bar trackpad enabled, space never starts a glide.
+                && !(LabsSpaceTrackpad.INSTANCE.isEnabled()
+                        && key.getCode() == Constants.CODE_SPACE);
         if (mIsDetectingGesture) {
             mBatchInputArbiter.addDownEventPoint(x, y, eventTime,
                     sTypingTimeRecorder.getLastLetterTypingTime(), getActivePointerTrackerCount());
@@ -726,6 +740,10 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
     }
 
     private void onDownEventInternal(final int x, final int y, final long eventTime) {
+        // Labs-only: a new down event always starts without stale trackpad state.
+        if (mLabsTrackpadActive) {
+            finishLabsTrackpad();
+        }
         Key key = onDownKey(x, y, eventTime);
         // Key selection by dragging finger is allowed when 1) key selection by dragging finger is
         // enabled by configuration, 2) this pointer starts dragging from modifier key, or 3) this
@@ -959,6 +977,11 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
     }
 
     private void onKeySwipe(final int code, final int x, final int y, final long eventTime) {
+        // Labs-only: once the space-bar trackpad is active every move is cursor movement.
+        if (mLabsTrackpadActive) {
+            mTouchpadHandler.enableTouchpadMove(x, y, sListener);
+            return;
+        }
         final SettingsValues sv = Settings.getValues();
         final int fastTypingTimeout = 2 * sv.mKeyLongpressTimeout / 3;
         // we don't want keyswipes to start immediately if the user is fast-typing,
@@ -1097,6 +1120,12 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         // Release the last pressed key.
         setReleasedKeyGraphics(currentKey, true);
 
+        // Labs-only: releasing the space-bar trackpad must not commit a space.
+        if (mLabsTrackpadActive) {
+            finishLabsTrackpad();
+            return;
+        }
+
         if (mInHorizontalSwipe && currentKey.getCode() == KeyCode.DELETE) {
             sListener.onUpWithDeletePointerActive();
         }
@@ -1164,11 +1193,30 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         if (isShowingPopupKeysPanel()) {
             return;
         }
+        if (mLabsTrackpadActive) {
+            finishLabsTrackpad();
+        }
         mIsTrackingForActionDisabled = true;
     }
 
     public boolean isInOperation() {
         return !mIsTrackingForActionDisabled;
+    }
+
+    /** Labs-only: stop the space-bar trackpad and restore the normal key visuals. */
+    private void finishLabsTrackpad() {
+        if (!mLabsTrackpadActive) {
+            return;
+        }
+        mLabsTrackpadActive = false;
+        sTimerProxy.cancelKeyTimersOf(this);
+        mKeySwipeAllowed = false;
+        sInKeySwipe = false;
+        mInHorizontalSwipe = false;
+        mInVerticalSwipe = false;
+        mTouchpadHandler.disableTouchpadMode();
+        TouchpadHandler.resetLabsTouchpadMode();
+        sListener.onEndSpaceSwipe();
     }
 
     public void onLongPressed() {
@@ -1181,6 +1229,21 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
             return;
         }
         final int code = key.getCode();
+        // Labs-only: a still finger on a popup-free space key starts the cursor trackpad instead
+        // of the input-method picker. The key stays tracked so release can restore everything.
+        if (code == Constants.CODE_SPACE && LabsSpaceTrackpad.INSTANCE.isEnabled()
+                && key.getPopupKeys() == null
+                && LabsSpaceTrackpad.INSTANCE.isWithinSlop(
+                        mLastX - mStartX, mLastY - mStartY, sPointerStep)) {
+            mLabsTrackpadActive = true;
+            mKeySwipeAllowed = true;
+            sInKeySwipe = true;
+            mIsDetectingGesture = false;
+            mInHorizontalSwipe = false;
+            mInVerticalSwipe = false;
+            mTouchpadHandler.startTouchpadMode(mLastX, mLastY, sListener);
+            return;
+        }
         sListener.onLongPressKey(code);
         if (key.hasNoPanelAutoPopupKey()) {
             cancelKeyTracking();
@@ -1243,6 +1306,9 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         setReleasedKeyGraphics(mCurrentKey, true);
         resetKeySelectionByDraggingFinger();
         dismissPopupKeysPanel();
+        if (mLabsTrackpadActive) {
+            finishLabsTrackpad();
+        }
     }
 
     private boolean isMajorEnoughMoveToBeOnNewKey(final int x, final int y, final long eventTime,
@@ -1285,14 +1351,20 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         sTimerProxy.cancelLongPressAlphaSymbolKeyTimer();
         if (sInGesture) return;
         if (key == null) return;
-        if (!key.isLongPressEnabled()) return;
+        final int code = key.getCode();
+        // Labs-only: a popup-free space starts the trackpad even when it has no other long-press
+        // action, so do not require isLongPressEnabled() for it.
+        final boolean labsTrackpadSpace = code == Constants.CODE_SPACE
+                && LabsSpaceTrackpad.INSTANCE.isEnabled()
+                && key.getPopupKeys() == null;
+        if (!key.isLongPressEnabled() && !labsTrackpadSpace) return;
         // Caveat: Please note that isLongPressEnabled() can be true even if the current key
         // doesn't have its popup keys. (e.g. spacebar, globe key) If we are in the dragging finger
         // mode, we will disable long press timer of such key.
         // We always need to start the long press timer if the key has its popup keys regardless of
         // whether or not we are in the dragging finger mode.
-        int code = key.getCode();
-        if (mIsInDraggingFinger && (code == KeyCode.SHIFT || key.getPopupKeys() == null)) return;
+        if (mIsInDraggingFinger && (code == KeyCode.SHIFT || key.getPopupKeys() == null)
+                && !labsTrackpadSpace) return;
         if (code == KeyCode.SHIFT && sIsShiftLongPressSuppressed) {
             sIsShiftLongPressSuppressed = false;
             return;
@@ -1305,16 +1377,22 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
             return;
         }
 
-        int delay = getLongPressTimeout(code);
+        int delay = getLongPressTimeout(code, key);
         if (delay <= 0) return;
         sTimerProxy.startLongPressTimerOf(this, delay);
     }
 
-    private int getLongPressTimeout(int code) {
+    private int getLongPressTimeout(int code, final Key key) {
         int longpressTimeout = Settings.getValues().mKeyLongpressTimeout;
         return switch (code) {
-            case Constants.CODE_SPACE, KeyCode.SHIFT, KeyCode.SYMBOL_ALPHA
-                // We use slightly longer timeout for space, shift-lock, and the numpad long-press.
+            case Constants.CODE_SPACE -> {
+                final boolean hasPopupKeys = key != null && key.getPopupKeys() != null;
+                // Labs-only: the trackpad uses a shorter timeout, but only on a popup-free space.
+                yield LabsSpaceTrackpad.INSTANCE.spaceTimeout(longpressTimeout,
+                        LabsSpaceTrackpad.INSTANCE.isEnabled(), hasPopupKeys);
+            }
+            case KeyCode.SHIFT, KeyCode.SYMBOL_ALPHA
+                // We use slightly longer timeout for shift-lock and the numpad long-press.
                 -> longpressTimeout * 3 / 2
             ;
             default -> mIsInSlidingKeyInput

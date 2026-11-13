@@ -25,6 +25,8 @@
     <string name="labs_section_typing" translatable="false">Typing</string>
     <string name="labs_predicted_key_boost" translatable="false">Predicted key boost</string>
     <string name="labs_predicted_key_boost_summary" translatable="false">Make the predicted next letter easier to hit. Taps only; drags and gestures are unaffected.</string>
+    <string name="labs_space_trackpad" translatable="false">Space-bar trackpad</string>
+    <string name="labs_space_trackpad_summary" translatable="false">Hold the space bar still for 350 ms, then drag to move the cursor. Key labels hide until release; no space is typed.</string>
     <string name="labs_section_counters" translatable="false">Counters (saved)</string>
     <string name="labs_counter_total_taps" translatable="false">Total taps</string>
     <string name="labs_counter_target_present" translatable="false">Taps with a target present</string>
