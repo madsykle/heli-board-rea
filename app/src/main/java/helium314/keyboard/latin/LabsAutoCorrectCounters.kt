@@ -188,6 +188,10 @@ object LabsAutoCorrectCounters {
         }
         if (isAutoCorrectEvent(commitType, typedWord, committedWord, separatorCommit)) {
             startPending(typedWord, committedWord)
+        } else {
+            // A normal commit makes the previous auto-correction no longer the last composed
+            // word, so it can no longer be reverted; settle it as kept now.
+            synchronized(this) { finalizeKeptLocked() }
         }
         appendContext(committedWord)
     }
