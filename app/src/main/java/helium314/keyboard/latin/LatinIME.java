@@ -910,6 +910,10 @@ public class LatinIME extends InputMethodService implements
         LabsShadowEval.INSTANCE.onFieldChanged(this, currentSettingsValues);
         LabsSuggestionOrder.INSTANCE.onFieldChanged(this, currentSettingsValues, restarting);
         LabsSpaceTrackpad.INSTANCE.onFieldChanged(this);
+        // Labs-only, observe-only: field eligibility for the touch-offset and auto-correct
+        // counters. No preference is read later on the touch path.
+        LabsTouchOffset.INSTANCE.onFieldChanged(this, currentSettingsValues);
+        LabsAutoCorrectCounters.INSTANCE.onFieldChanged(this, currentSettingsValues);
         Log.i(TAG, (restarting ? "Res" : "S") +"tarting input. Cursor position = " + editorInfo.initialSelStart + "," + editorInfo.initialSelEnd);
         if (DebugFlags.DEBUG_ENABLED) {
             EditorInfoCompatUtils.INSTANCE.debugLog(editorInfo, TAG);
@@ -1064,6 +1068,8 @@ public class LatinIME extends InputMethodService implements
         LabsShadowEval.INSTANCE.onKeyboardHidden();
         LabsSuggestionOrder.INSTANCE.onKeyboardHidden();
         LabsSpaceTrackpad.INSTANCE.onKeyboardHidden();
+        LabsTouchOffset.INSTANCE.onKeyboardHidden();
+        LabsAutoCorrectCounters.INSTANCE.onKeyboardHidden();
         cleanupInternalStateForFinishInput();
     }
 

@@ -46,6 +46,7 @@ import helium314.keyboard.keyboard.internal.TimerHandler;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.LabsKeyBoost;
 import helium314.keyboard.latin.LabsSpaceTrackpad;
+import helium314.keyboard.latin.LabsTouchOffset;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.RichInputMethodSubtype;
 import helium314.keyboard.latin.SuggestedWords;
@@ -317,6 +318,8 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         LabsKeyBoost.INSTANCE.onKeyboardChanged(getContext());
         // Labs-only: reload the trackpad switch and drop any trackpad state from the old layout.
         LabsSpaceTrackpad.INSTANCE.onKeyboardChanged(getContext());
+        // Labs-only: cache the letter-row edges of the new layout for the touch-offset buckets.
+        LabsTouchOffset.INSTANCE.onKeyboardChanged(keyboard);
         setKeyTopVisualsHidden(false);
         mPopupKeysKeyboardCache.clear();
 

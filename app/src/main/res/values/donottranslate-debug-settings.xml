@@ -67,4 +67,25 @@
     <string name="labs_order_first_hits" translatable="false">Final word in first real slot</string>
     <string name="labs_order_any_hits" translatable="false">Final word in any visible slot</string>
     <string name="labs_order_reset" translatable="false">Reset model order counters</string>
+
+    <string name="labs_section_touch_offset" translatable="false">Touch offset (letter taps)</string>
+    <string name="labs_touch_offset_hint" translatable="false">Offset from the key centre in px; ± is the standard deviation. Aggregate only.</string>
+    <string name="labs_touch_row_top" translatable="false">Top row</string>
+    <string name="labs_touch_row_middle" translatable="false">Middle row</string>
+    <string name="labs_touch_row_bottom" translatable="false">Bottom row</string>
+    <string name="labs_touch_col_left" translatable="false">left</string>
+    <string name="labs_touch_col_center" translatable="false">centre</string>
+    <string name="labs_touch_col_right" translatable="false">right</string>
+    <string name="labs_touch_offset_reset" translatable="false">Reset touch offset counters</string>
+
+    <string name="labs_section_autocorrect" translatable="false">Autocorrect</string>
+    <string name="labs_autocorrect_events" translatable="false">Autocorrect events</string>
+    <string name="labs_autocorrect_reverted" translatable="false">Reverted within 3 s</string>
+    <string name="labs_autocorrect_kept" translatable="false">Not reverted</string>
+    <string name="labs_autocorrect_reverted_group" translatable="false">Reverted: model opinion</string>
+    <string name="labs_autocorrect_kept_group" translatable="false">Not reverted: model opinion</string>
+    <string name="labs_autocorrect_model_match" translatable="false">Model agrees</string>
+    <string name="labs_autocorrect_model_differ" translatable="false">Model differs</string>
+    <string name="labs_autocorrect_model_no_opinion" translatable="false">Model has no opinion</string>
+    <string name="labs_autocorrect_reset" translatable="false">Reset autocorrect counters</string>
 </resources>

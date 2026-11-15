@@ -31,6 +31,7 @@ import helium314.keyboard.keyboard.internal.TypingTimeRecorder;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.LabsKeyBoost;
 import helium314.keyboard.latin.LabsSpaceTrackpad;
+import helium314.keyboard.latin.LabsTouchOffset;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.latin.common.Constants;
 import helium314.keyboard.latin.common.CoordinateUtils;
@@ -1181,6 +1182,13 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         if (currentKey != null && currentKey.isRepeatable()
                 && (currentKey.getCode() == currentRepeatingKeyCode) && !isInDraggingFinger) {
             return;
+        }
+        // Labs-only, observe-only: measure the offset of a plain letter tap. Dragging-finger
+        // selection and sliding input are not taps, and gestures, trackpad and popup panels have
+        // already returned above.
+        if (!isInDraggingFinger && !isInSlidingKeyInput) {
+            LabsTouchOffset.INSTANCE.onLetterTap(
+                    currentKey, mDownCoordinates[0], mDownCoordinates[1], mKeyDetector);
         }
         detectAndSendKey(currentKey, mKeyX, mKeyY, eventTime);
         if (isInSlidingKeyInput) {

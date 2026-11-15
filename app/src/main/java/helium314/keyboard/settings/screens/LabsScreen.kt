@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import helium314.keyboard.latin.LabsAutoCorrectCounters
 import helium314.keyboard.latin.LabsKeyBoost
 import helium314.keyboard.latin.LabsShadowEval
 import helium314.keyboard.latin.LabsShadowEval.Metric
@@ -21,7 +22,9 @@ import helium314.keyboard.latin.LabsShadowEval.ModelStatus
 import helium314.keyboard.latin.LabsSpaceTrackpad
 import helium314.keyboard.latin.LabsSuggestionOrder
 import helium314.keyboard.latin.LabsSuggestionOrder.Metric as OrderMetric
+import helium314.keyboard.latin.LabsTouchOffset
 import helium314.keyboard.latin.R
+import helium314.keyboard.latin.TouchOffsetBucket
 import helium314.keyboard.settings.Setting
 import helium314.keyboard.settings.SearchSettingsScreen
 import helium314.keyboard.settings.preferences.ListPreference
@@ -44,6 +47,8 @@ fun LabsScreen(
     val stats by LabsKeyBoost.stats.collectAsState()
     val shadowStats by LabsShadowEval.stats.collectAsState()
     val orderStats by LabsSuggestionOrder.stats.collectAsState()
+    val touchStats by LabsTouchOffset.stats.collectAsState()
+    val autoCorrectStats by LabsAutoCorrectCounters.stats.collectAsState()
     val modelStatus by LabsShadowEval.status.collectAsState()
     val ctx = LocalContext.current
     val orderSetting = remember(ctx) {
@@ -64,6 +69,8 @@ fun LabsScreen(
         LabsShadowEval.load(ctx)
         LabsSuggestionOrder.load(ctx)
         LabsSpaceTrackpad.load(ctx)
+        LabsTouchOffset.load(ctx)
+        LabsAutoCorrectCounters.load(ctx)
     }
     SearchSettingsScreen(
         onClickBack = onClickBack,
@@ -221,6 +228,70 @@ fun LabsScreen(
                     onClick = { LabsSuggestionOrder.resetStats(ctx) }
                 )
             }
+
+            item { PreferenceCategory(stringResource(R.string.labs_section_touch_offset)) }
+            item {
+                Preference(
+                    name = stringResource(R.string.labs_touch_offset_hint),
+                    onClick = {}
+                )
+            }
+            val touchRows = intArrayOf(
+                R.string.labs_touch_row_top,
+                R.string.labs_touch_row_middle,
+                R.string.labs_touch_row_bottom,
+            )
+            val touchColumns = intArrayOf(
+                R.string.labs_touch_col_left,
+                R.string.labs_touch_col_center,
+                R.string.labs_touch_col_right,
+            )
+            for (row in 0..2) {
+                for (column in 0..2) {
+                    item {
+                        TouchBucketPreference(
+                            name = stringResource(touchRows[row]) + " \u00b7 " +
+                                    stringResource(touchColumns[column]),
+                            bucket = touchStats.bucket(row * 3 + column)
+                        )
+                    }
+                }
+            }
+            item {
+                Preference(
+                    name = stringResource(R.string.labs_touch_offset_reset),
+                    onClick = { LabsTouchOffset.resetStats(ctx) }
+                )
+            }
+
+            item { PreferenceCategory(stringResource(R.string.labs_section_autocorrect)) }
+            item { CounterPreference(R.string.labs_autocorrect_events, autoCorrectStats.events) }
+            item { CounterPreference(R.string.labs_autocorrect_reverted, autoCorrectStats.reverted) }
+            item { CounterPreference(R.string.labs_autocorrect_kept, autoCorrectStats.kept) }
+            item {
+                AutoCorrectGroup(
+                    title = R.string.labs_autocorrect_reverted_group,
+                    total = autoCorrectStats.reverted,
+                    match = autoCorrectStats.revertedMatch,
+                    differ = autoCorrectStats.revertedDiffer,
+                    noOpinion = autoCorrectStats.revertedNoOpinion
+                )
+            }
+            item {
+                AutoCorrectGroup(
+                    title = R.string.labs_autocorrect_kept_group,
+                    total = autoCorrectStats.kept,
+                    match = autoCorrectStats.keptMatch,
+                    differ = autoCorrectStats.keptDiffer,
+                    noOpinion = autoCorrectStats.keptNoOpinion
+                )
+            }
+            item {
+                Preference(
+                    name = stringResource(R.string.labs_autocorrect_reset),
+                    onClick = { LabsAutoCorrectCounters.resetStats(ctx) }
+                )
+            }
         }
     }
 }
@@ -259,6 +330,44 @@ private fun OrderStatsGroup(
         HitPreference(R.string.labs_order_first_hits, firstHits, words)
         HitPreference(R.string.labs_order_any_hits, anyHits, words)
     }
+}
+
+@Composable
+private fun TouchBucketPreference(name: String, bucket: TouchOffsetBucket) {
+    Preference(
+        name = name,
+        onClick = {},
+        description = touchBucketText(bucket)
+    )
+}
+
+@Composable
+private fun AutoCorrectGroup(
+    @StringRes title: Int,
+    total: Int,
+    match: Int,
+    differ: Int,
+    noOpinion: Int,
+) {
+    Column {
+        PreferenceCategory(stringResource(title))
+        HitPreference(R.string.labs_autocorrect_model_match, match, total)
+        HitPreference(R.string.labs_autocorrect_model_differ, differ, total)
+        HitPreference(R.string.labs_autocorrect_model_no_opinion, noOpinion, total)
+    }
+}
+
+private fun touchBucketText(bucket: TouchOffsetBucket): String {
+    if (bucket.count == 0L) return "n = 0"
+    return String.format(
+        Locale.US,
+        "n = %d \u00b7 dx %.1f \u00b1 %.1f px \u00b7 dy %.1f \u00b1 %.1f px",
+        bucket.count,
+        bucket.meanDx,
+        bucket.stdDx,
+        bucket.meanDy,
+        bucket.stdDy
+    )
 }
 
 @Composable

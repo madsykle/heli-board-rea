@@ -162,6 +162,12 @@ object LabsShadowEval {
     internal fun isModelLoaded(): Boolean = isLabsBuild && model != null
 
     /**
+     * The immutable model used to classify an auto-correction, or null when none is loaded. This
+     * is a volatile read; the caller must do the prediction off the input path.
+     */
+    internal fun modelForOpinion(): ShadowModel? = if (isLabsBuild) model else null
+
+    /**
      * Labs-only suggestion ordering: the model's top candidate for [prefix]. This runs on the
      * suggestion worker thread, never on the touch path, and returns a lower-case vocabulary
      * word or null. Nothing is logged.

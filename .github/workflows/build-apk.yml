@@ -56,7 +56,7 @@ jobs:
 
       # These tests use only synthetic n-grams and pure trackpad math, never private data.
       - name: Run Labs unit tests
-        run: ./gradlew testDebugUnitTest --tests helium314.keyboard.latin.LabsShadowModelTest --tests helium314.keyboard.latin.LabsSpaceTrackpadTest --stacktrace
+        run: ./gradlew testDebugUnitTest --tests helium314.keyboard.latin.LabsShadowModelTest --tests helium314.keyboard.latin.LabsSpaceTrackpadTest --tests helium314.keyboard.latin.LabsTouchOffsetTest --tests helium314.keyboard.latin.LabsAutoCorrectCountersTest --stacktrace
 
       - name: Decode signing keystore
         env:

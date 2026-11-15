@@ -1341,7 +1341,10 @@ public final class InputLogic {
         } else {
             if (mLastComposedWord.canRevertCommit() && inputTransaction.getSettingsValues().mBackspaceRevertsAutocorrect) {
                 final String lastComposedWord = mLastComposedWord.mTypedWord;
+                final String revertedCommittedWord = mLastComposedWord.mCommittedWord.toString();
                 revertCommit(inputTransaction);
+                // Labs-only, observe-only: count the revert if it happened inside the window.
+                LabsAutoCorrectCounters.INSTANCE.onRevert(revertedCommittedWord);
                 StatsUtils.onRevertAutoCorrect();
                 StatsUtils.onWordCommitUserTyped(lastComposedWord, mWordComposer.isBatchMode());
                 // Restart suggestions when backspacing into a reverted word. This is required for
@@ -2520,6 +2523,14 @@ public final class InputLogic {
         mLastComposedWord = mWordComposer.commitWord(commitType, chosenWord, separatorString, ngramContext);
         // Labs-only: a committed word has no predicted next key until the strip updates again.
         LabsKeyBoost.INSTANCE.clearTarget();
+        // Labs-only, observe-only: update the two-word context and start an auto-correct event
+        // when a suggestion replaced the typed word on a single space or punctuation separator.
+        // No model lookup here.
+        final boolean separatorCommit = separatorString != null
+                && separatorString.codePointCount(0, separatorString.length()) == 1
+                && settingsValues.isWordSeparator(separatorString.codePointAt(0));
+        LabsAutoCorrectCounters.INSTANCE.onWordCommitted(
+                settingsValues, typedWordForShadow, chosenWord, commitType, separatorCommit);
         // Labs-only: evaluate the finished word in the background; no typed text is persisted.
         LabsShadowEval.INSTANCE.onWordCommitted(settingsValues, typedWordForShadow, chosenWord, commitType);
         LabsSuggestionOrder.INSTANCE.onWordCommitted(settingsValues, typedWordForShadow, chosenWord);
