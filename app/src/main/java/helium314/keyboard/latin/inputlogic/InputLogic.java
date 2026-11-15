@@ -35,6 +35,7 @@ import helium314.keyboard.keyboard.KeyboardSwitcher;
 import helium314.keyboard.keyboard.emoji.RecentEmojis;
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import helium314.keyboard.latin.CapsMode;
+import helium314.keyboard.latin.LabsAutoCorrectCounters;
 import helium314.keyboard.latin.LabsKeyBoost;
 import helium314.keyboard.latin.LabsShadowEval;
 import helium314.keyboard.latin.LabsSuggestionOrder;
